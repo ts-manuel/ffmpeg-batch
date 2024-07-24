@@ -1,0 +1,26 @@
+{
+   "sony-conv-all":{
+      "output_file_ext": ".m2ts",
+      "ffmpeg_args":{
+         "map": [
+            "0:v",
+            "0:a"
+         ],
+         "map_metadata:g": "-1",
+         "vf": "scale='if(gt(a,1920/1080),1920,trunc((1080*a)/2)*2)':'if(gt(a,1920/1080),trunc((1920/a)/2)*2,1080)'",
+         "c:v": "libx264",
+         "pix_fmt": "yuv420p",
+         "profile:v": "high",
+         "level": "4.0",
+         "refs": "1",
+         "x264opts": "b-pyramid=0:bluray-compat=1:interlaced=0:nal-hrd=vbr:aud=1",
+         "maxrate": "6M",
+         "bufsize": "8M",
+         "preset": "slow",
+         "f": "mpegts",
+         "af": "loudnorm=I=-23:LRA=7:TP=-2",
+         "c:a": "ac3",
+         "b:a": "128k"
+      }
+   }
+}
