@@ -244,6 +244,9 @@ def doConvert(targetList, preset):
 
             print('Converting {0}'.format(str(target.inputPath)))
 
+            # Create output directory if doesn't exist
+            target.outputPath.parent.mkdir(parents=True, exist_ok=True)
+
             try:
                 ffmpeg = (
                     FFmpeg()
@@ -256,7 +259,7 @@ def doConvert(targetList, preset):
                 )
 
                 vprint(f"Running ffmpeg with: {ffmpeg.arguments}")
-                
+
                 ffmpeg.execute()
 
             except FFmpegAlreadyExecuted as exception:
