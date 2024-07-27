@@ -85,26 +85,15 @@ def main():
     vprint('  Preset ....: ' + str(args.preset))
     vprint()
 
-    # Load presets
-    with open(gPresetsFile, 'r') as f:
-        presets = json.load(f)
-
-    #TODO Add parsing with error checking for presets file
-
-    # Check if preset is specified
-    if args.preset == None:
-        print('Error: no preset specified, use the -p option to slect one of the following presets:')
-        for x in presets:
-            print(' - {0}'.format(x))
-        exit(1)
-
     # Check if output path exists
     outputDirectory = Path(args.output)
     if not outputDirectory.is_dir():
         print('Error: output path "{0}" does not exist, create output path before running the script'.format(args.output))
         exit(1)
 
-    preset = presets[args.preset]
+    # Assert that a valid preset is specified and get its entry by name 
+    preset = assertAndGetValidPreset(args.preset)
+
     outFileExtension = extractOutputFileExtension(preset)
 
     # Generate a list with all input file paths
@@ -133,6 +122,42 @@ def signal_handler(sig, frame):
     exit(0)
 
 
+
+def assertAndGetValidPreset(presetName):
+    with open(gPresetsFile, 'r') as f:
+        presets = json.load(f)
+
+    # Check if the preset argument is pecified ad is a valid preset name
+    if presetName == None or not presetName in presets:
+        print('Error: no valid preset specified, use the -p option to slect one of the following presets:')
+        printAvailablePresets()
+        exit(1)
+
+    # Check if the preset contains the required key fields
+    preset = presets[presetName]
+    keywordsToCeck = ['output_file_ext', 'ffmpeg_args']
+    keyNotFound = False
+
+    for k in keywordsToCeck:
+        if not k in preset:
+            print(f'Error: wrong sintax in preset file: {gPresetsFile}, keyword "{k}" not set for preset "{presetName}"')
+            keyNotFound = True
+
+    if keyNotFound:
+        exit()
+
+    return preset
+
+
+
+def printAvailablePresets():
+    with open(gPresetsFile, 'r') as f:
+        presets = json.load(f)
+
+    for p in presets:
+        print(f' - {p}')
+
+    
 
 def extractOutputFileExtension(preset):
     #extension = preset[preset.rfind('*.') + 1:]
