@@ -62,11 +62,11 @@ def main():
        formatter_class=CustomHelpFormatter
     )
     parser.add_argument('-r', action='store_true', help='recursive evaluation (include sub directories)')
-    parser.add_argument('-f', '--force', action='store_true', help='do not skip already existing output files')
-    parser.add_argument('-p', '--preset', help='preset to use for file conversion')
-    parser.add_argument('-v', '--verbose', action='store_true')
-    parser.add_argument('-i', '--input', nargs='+', help='input file paths or directories to be evaluated')
-    parser.add_argument('-o', '--output', help='output directory where to store converted files')
+    parser.add_argument('-f', action='store_true', help='do not skip already existing output files')
+    parser.add_argument('-p', help='preset to use for file conversion')
+    parser.add_argument('-v', action='store_true')
+    parser.add_argument('-i', nargs='+', help='input file paths or directories to be evaluated')
+    parser.add_argument('-o', help='output directory where to store converted files')
     
     args = parser.parse_args()
 
@@ -74,28 +74,28 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     global gVerbose
-    gVerbose = args.verbose
+    gVerbose = args.v
 
     vprint('Input parameters:')
-    vprint('  args.input : ' + str(args.input))
-    vprint('  args.input : ' + str(args.output))
+    vprint('  args.input : ' + str(args.i))
+    vprint('  args.input : ' + str(args.o))
     vprint('  Recursive .: ' + str(args.r))
     vprint('  Verbose ...: ' + str(gVerbose))
-    vprint('  Force .....: ' + str(args.force))
-    vprint('  Preset ....: ' + str(args.preset))
+    vprint('  Force .....: ' + str(args.f))
+    vprint('  Preset ....: ' + str(args.p))
     vprint()
 
     # Check if output path exists
-    outputDirectory = Path(args.output)
+    outputDirectory = Path(args.o)
     if not outputDirectory.is_dir():
-        print('Error: output path "{0}" does not exist, create output path before running the script'.format(args.output))
+        print('Error: output path "{0}" does not exist, create output path before running the script'.format(args.o))
         exit(1)
 
     # Assert that a valid preset is specified and get its entry by name
-    preset = assertAndGetValidPreset(args.preset)
+    preset = assertAndGetValidPreset(args.p)
 
     # Generate list of target files to convert
-    targetList = generateTargetList(args.input, args.output, args.r, args.force, preset)
+    targetList = generateTargetList(args.i, args.o, args.r, args.f, preset)
 
     if len(targetList) == 0:
         print('Error: no valid input file specified')
