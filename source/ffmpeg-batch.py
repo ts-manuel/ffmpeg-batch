@@ -91,18 +91,11 @@ def main():
         print('Error: output path "{0}" does not exist, create output path before running the script'.format(args.output))
         exit(1)
 
-    # Assert that a valid preset is specified and get its entry by name 
+    # Assert that a valid preset is specified and get its entry by name
     preset = assertAndGetValidPreset(args.preset)
 
-    # Generate a list with all input file paths
-    inputFileList = getInputPathsFromInputList(args.input, args.r)
-
-    # Parse the input list and generate a list of tuples (inputPath, outputPath) for every file to be processed 
-    targetList = generateTargetList(inputFileList, args.output, preset['output_file_ext'])
-
-    # Remove fome the list the output files that already exist if the force flag is not set
-    if not args.force:
-        flagExistingOutputFiles(targetList)
+    # Generate list of target files to convert
+    targetList = generateTargetList(args.input, args.output, args.r, args.force, preset)
 
     if len(targetList) == 0:
         print('Error: no valid input file specified')
@@ -157,34 +150,10 @@ def printAvailablePresets():
 
 
 
-def generateTargetList(inputFileList, output, outFileExtension):
-    targetList = []
-
-    vprint('Generating input - output tuples')
-
-    for x in inputFileList:
-        if len(x.parents) == 1:
-            outPath = Path(output).joinpath(x).with_suffix(outFileExtension)
-        else:
-            outPath = Path(output).joinpath(x.relative_to(*x.parts[:2])).with_suffix(outFileExtension)
-
-        vprint('  appending path with {0} parents: {1}'.format(len(x.parents), Target(x, outPath)))
-        targetList.append(Target(x, outPath))
-
-    return targetList
-
-
-
-def flagExistingOutputFiles(targetList):
-    for target in targetList:
-        if target.outputPath.exists():
-            vprint('File already exists: {0}'.format(target))
-            target.doConvert = False
-
-
-
-def getInputPathsFromInputList(inputList, recursive):
+def generateTargetList(inputList, output, recursive, force, preset):
     inputFilePathList = []
+    targetList = []
+    outFileExtension = preset['output_file_ext']
 
     vprint('Generating input file map')
 
@@ -194,7 +163,7 @@ def getInputPathsFromInputList(inputList, recursive):
         if pt.is_file():
             vprint('  Adding file: [{0}]'.format(inPath))
             inputFilePathList.append(pt)
-            
+
         elif pt.is_dir():
             vprint('  Adding directory: [{0}]'.format(inPath))
             inputFilePathList.extend(getListOfFilesInDirectory(pt, recursive))
@@ -203,7 +172,24 @@ def getInputPathsFromInputList(inputList, recursive):
             print('Error: input path "{0}" does not exist'.format(inPath))
             exit(1)
 
-    return inputFilePathList
+    vprint('Generating output paths')
+
+    for x in inputFilePathList:
+        doConvert = True
+
+        if len(x.parents) == 1:
+            outPath = Path(output).joinpath(x).with_suffix(outFileExtension)
+        else:
+            outPath = Path(output).joinpath(x.relative_to(*x.parts[:2])).with_suffix(outFileExtension)
+
+        if outPath.exists() and not force:
+            doConvert = False
+
+        tg = Target(x, outPath, doConvert)
+        targetList.append(tg)
+        vprint(f'  appending target: {tg}')
+
+    return targetList
 
 
 
