@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 ################################################################################################
 #  File: ffmpeg-batch.py
 #
@@ -31,7 +33,9 @@ import argparse
 import json
 from pathlib import Path
 from dataclasses import dataclass
-from ffmpeg import FFmpeg, FFmpegAlreadyExecuted, FFmpegFileNotFound, FFmpegInvalidCommand, FFmpegUnsupportedCodec
+from ffmpeg import FFmpeg, FFmpegAlreadyExecuted, FFmpegFileNotFound, FFmpegInvalidCommand, FFmpegUnsupportedCodec, Progress
+from rich.progress import Progress as RichProgress, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn
+from hurry.filesize import size as HurryFileSize
 
 
 
@@ -240,12 +244,28 @@ def printFilesToConvertAndAskForConfirmation(targetList):
 
 def doConvert(targetList, preset):
     for target in targetList:
-        if target.doConvert:
 
-            print('Converting {0}'.format(str(target.inputPath)))
+        # Skip this target if the doConvert flag is not set
+        if not target.doConvert:
+            continue
 
-            # Create output directory if doesn't exist
-            target.outputPath.parent.mkdir(parents=True, exist_ok=True)
+        print('Processing {0}'.format(str(target.inputPath)))
+
+        # Create output directory if doesn't exist
+        target.outputPath.parent.mkdir(parents=True, exist_ok=True)
+
+        with RichProgress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeRemainingColumn(),
+            TextColumn("[yellow]fps: {task.fields[fps]}"),
+            TextColumn("[yellow]size: {task.fields[size]}"),
+            TextColumn("[yellow]speed: {task.fields[speed]}x"),
+            transient=True
+        ) as RcProgress:
+            duratioInSec = getVideoDuratioInSec(target.inputPath)
+            task1 = RcProgress.add_task("[yellow]Converting...", total=duratioInSec, fps=0, speed=0, size=0)
 
             try:
                 ffmpeg = (
@@ -257,6 +277,18 @@ def doConvert(targetList, preset):
                         options=preset["ffmpeg_args"]
                     )
                 )
+
+                @ffmpeg.on("progress")
+                def on_progress(progress: Progress):
+                    RcProgress.update(task1, completed=progress.time.seconds, fps=progress.fps, speed=progress.speed, size=HurryFileSize(progress.size))
+
+                @ffmpeg.on("completed")
+                def on_completed():
+                    print("completed")
+
+                @ffmpeg.on("terminated")
+                def on_terminated():
+                    print("terminated")
 
                 vprint(f"Running ffmpeg with: {ffmpeg.arguments}")
 
@@ -278,6 +310,19 @@ def doConvert(targetList, preset):
                 print("An exception has been occurred!")
                 print("- Message from ffmpeg:", exception.message)
                 print("- Arguments to execute ffmpeg:", exception.arguments)
+
+
+
+def getVideoDuratioInSec(path):
+    ffprobe = FFmpeg(executable="ffprobe").input(
+        str(path),
+        print_format="json", # ffprobe will output the results in JSON format
+        show_streams=None,
+    )
+
+    media = json.loads(ffprobe.execute())
+
+    return float(media['streams'][0]['duration'])
 
 
 
