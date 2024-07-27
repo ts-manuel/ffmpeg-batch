@@ -33,8 +33,10 @@ import argparse
 import json
 from pathlib import Path
 from dataclasses import dataclass
-from ffmpeg import FFmpeg, FFmpegAlreadyExecuted, FFmpegFileNotFound, FFmpegInvalidCommand, FFmpegUnsupportedCodec, Progress
-from rich.progress import Progress as RichProgress, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn
+from ffmpeg import FFmpeg, FFmpegError, Progress
+from rich.progress import Progress as RichProgress, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn, TimeElapsedColumn
+from rich.live import Live
+from rich.console import Group
 from hurry.filesize import size as HurryFileSize
 
 
@@ -242,30 +244,52 @@ def printFilesToConvertAndAskForConfirmation(targetList):
 
 
 
-def doConvert(targetList, preset):
-    for target in targetList:
+def doConvert(targetList : list[Target], preset):
+    convProgress = RichProgress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        TextColumn("[yellow]fps: {task.fields[fps]}"),
+        TextColumn("[yellow]size: {task.fields[size]}"),
+        TextColumn("[yellow]speed: {task.fields[speed]}x"),
+        transient=True
+    )
 
-        # Skip this target if the doConvert flag is not set
-        if not target.doConvert:
-            continue
+    overallProgress = RichProgress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        TimeElapsedColumn(),
+        transient=True
+    )
 
-        print('Processing {0}'.format(str(target.inputPath)))
+    group = Group(
+        convProgress,
+        overallProgress
+    )
 
-        # Create output directory if doesn't exist
-        target.outputPath.parent.mkdir(parents=True, exist_ok=True)
+    live = Live(group)
 
-        with RichProgress(
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            TimeRemainingColumn(),
-            TextColumn("[yellow]fps: {task.fields[fps]}"),
-            TextColumn("[yellow]size: {task.fields[size]}"),
-            TextColumn("[yellow]speed: {task.fields[speed]}x"),
-            transient=True
-        ) as RcProgress:
+    with live:
+        accumulatedTime = 0
+        totalTimeSec = getVideoListDuratioInSec([x.inputPath for x in targetList if x.doConvert])
+        overallTaskID = overallProgress.add_task("[red]Progress...", total=totalTimeSec)
+        convTaskList = []
+
+        for target in targetList:
+
+            # Skip this target if the doConvert flag is not set
+            if not target.doConvert:
+                continue
+
+            # Create output directory if doesn't exist
+            target.outputPath.parent.mkdir(parents=True, exist_ok=True)
+
             duratioInSec = getVideoDuratioInSec(target.inputPath)
-            task1 = RcProgress.add_task("[yellow]Converting...", total=duratioInSec, fps=0, speed=0, size=0)
+
+            convTaskList.append(convProgress.add_task(f"[yellow]{target.outputPath.name}", total=duratioInSec, fps=0, speed=0, size=0))
 
             try:
                 ffmpeg = (
@@ -280,40 +304,42 @@ def doConvert(targetList, preset):
 
                 @ffmpeg.on("progress")
                 def on_progress(progress: Progress):
-                    RcProgress.update(task1, completed=progress.time.seconds, fps=progress.fps, speed=progress.speed, size=HurryFileSize(progress.size))
+                    convProgress.update(convTaskList[-1], completed=progress.time.seconds, fps=progress.fps, speed=progress.speed, size=HurryFileSize(progress.size))
+                    overallProgress.update(overallTaskID, completed=accumulatedTime + progress.time.seconds)
 
                 @ffmpeg.on("completed")
                 def on_completed():
-                    print("completed")
-
-                @ffmpeg.on("terminated")
-                def on_terminated():
-                    print("terminated")
+                    convProgress.update(convTaskList[-1], completed=duratioInSec)
+                    nonlocal accumulatedTime
+                    accumulatedTime += duratioInSec
 
                 vprint(f"Running ffmpeg with: {ffmpeg.arguments}")
 
                 ffmpeg.execute()
 
-            except FFmpegAlreadyExecuted as exception:
-                print("An exception has been occurred!")
-                print("- Message from ffmpeg:", exception.message)
-                print("- Arguments to execute ffmpeg:", exception.arguments)
-            except FFmpegFileNotFound as exception:
-                print("An exception has been occurred!")
-                print("- Message from ffmpeg:", exception.message)
-                print("- Arguments to execute ffmpeg:", exception.arguments)
-            except FFmpegInvalidCommand as exception:
-                print("An exception has been occurred!")
-                print("- Message from ffmpeg:", exception.message)
-                print("- Arguments to execute ffmpeg:", exception.arguments)
-            except FFmpegUnsupportedCodec as exception:
+            except FFmpegError as exception:
                 print("An exception has been occurred!")
                 print("- Message from ffmpeg:", exception.message)
                 print("- Arguments to execute ffmpeg:", exception.arguments)
 
+        overallProgress.update(overallTaskID, completed=totalTimeSec)
 
 
-def getVideoDuratioInSec(path):
+
+def getVideoListDuratioInSec(targetList : list[Path]):
+    duration = 0
+
+    vprint(f'Get video duration for list of {len(targetList)} items:')
+
+    for x in targetList:
+        vprint(f'  getting duration for {x}')
+        duration = duration + getVideoDuratioInSec(x)
+
+    return duration
+
+
+
+def getVideoDuratioInSec(path : Path):
     ffprobe = FFmpeg(executable="ffprobe").input(
         str(path),
         print_format="json", # ffprobe will output the results in JSON format
