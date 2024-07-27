@@ -1,32 +1,3 @@
-from __future__ import annotations
-
-################################################################################################
-#  File: ffmpeg-batch.py
-#
-#
-# Preset format:
-#   presets are stored in the 'presets.json' file as a dictionary,
-#   every entry has a name an the associated ffmpeg command.
-#   The script substitutes the placeholder "*.*" with the input file path
-#   and the placeholder "*." with the output file path.
-#   The file extension of the output is specified in the preset.
-#
-#   Example:
-#   {
-#      "Preset 1": "-i *.* ... *.m2ts",
-#      "Preset 2": "-i *.* ... *.avi"
-#   }
-#
-#
-# Allowed file path combinations:
-#     -i specifies the input file / directory, if the input is a directory all the files inside are evaluated.
-#        The -r optional parameter can be specified to make the evaluation recursive.
-#
-#     -o specifies the output directory. All the evaluated input files are converted and stored in this directory
-#        the file extension is thaken from the preset (Example: *.mp4)
-#
-################################################################################################
-
 import signal
 import math
 import argparse

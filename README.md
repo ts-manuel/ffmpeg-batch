@@ -32,16 +32,26 @@ the file extension is thaken from the preset.\
 
 ### Presets
 Presets are stored in the `"presets.json"` file as a dictionary,
-every entry has a name an the associated ffmpeg command.
-The python script substitutes the placeholder `"*.*"` with the input file path
-and the placeholder `"*."` with the output file path.
-The output file extension is specified in the preset.
+every entry must have the folllowing keys:
++ "output_file_ext"   : the file extension of the output file
++ "ffmpeg_args"       : the arguments to pass to ffmpeg
 
 #### Example
-
     {
-      "Preset 1": "-i *.* ... *.m2ts",
-      "Preset 2": "-i *.* ... *.avi"
+      "Preset 1":{
+        "output_file_ext": ".m2ts",
+        "ffmpeg_args":{
+          "c:v": "libx264",
+          "c:a": "ac3",
+          ...
+      }
+      },
+      "Preset 2":{
+        "output_file_ext": ".mp4",
+        "ffmpeg_args":{
+        ...
+        }
+      }
     }
 
 
