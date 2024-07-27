@@ -94,13 +94,11 @@ def main():
     # Assert that a valid preset is specified and get its entry by name 
     preset = assertAndGetValidPreset(args.preset)
 
-    outFileExtension = extractOutputFileExtension(preset)
-
     # Generate a list with all input file paths
     inputFileList = getInputPathsFromInputList(args.input, args.r)
 
     # Parse the input list and generate a list of tuples (inputPath, outputPath) for every file to be processed 
-    targetList = generateTargetList(inputFileList, args.output, outFileExtension)
+    targetList = generateTargetList(inputFileList, args.output, preset['output_file_ext'])
 
     # Remove fome the list the output files that already exist if the force flag is not set
     if not args.force:
@@ -156,13 +154,6 @@ def printAvailablePresets():
 
     for p in presets:
         print(f' - {p}')
-
-    
-
-def extractOutputFileExtension(preset):
-    #extension = preset[preset.rfind('*.') + 1:]
-    extension = preset["output_file_ext"]
-    return extension
 
 
 
