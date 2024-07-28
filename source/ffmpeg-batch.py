@@ -127,44 +127,36 @@ def printAvailablePresets():
 
 
 
-def generateTargetList(inputList, output, recursive, force, preset):
-    inputFilePathList = []
+def generateTargetList(inputList : list[str], output : str, recursive : bool, force : bool, preset : dict) -> list[Target]:
     targetList = []
     outFileExtension = preset['output_file_ext']
 
-    vprint('Generating input file map')
+    vprint('\nGenerating target list:')
+
+    def generateTarget(inputDir : Path, outputDir: Path, inputPath : Path, fileExt : str, force : bool) -> Target:
+            op = outputDir.joinpath(inputPath.relative_to(inputDir)).with_suffix(fileExt)
+            dc = not op.exists() or force
+            tg = Target(inputPath, op, dc)
+            vprint(f'  generated target: {tg}')
+            return tg
 
     for inPath in inputList:
         pt = Path(inPath)
 
         if pt.is_file():
             vprint('  Adding file: [{0}]'.format(inPath))
-            inputFilePathList.append(pt)
+            targetList.append(generateTarget(pt.parents[0], Path(output), pt, outFileExtension, force))
 
         elif pt.is_dir():
             vprint('  Adding directory: [{0}]'.format(inPath))
-            inputFilePathList.extend(getListOfFilesInDirectory(pt, recursive))
+            ip = getListOfFilesInDirectory(pt, recursive)
+
+            for i in ip:
+                targetList.append(generateTarget(pt, Path(output), i, outFileExtension, force))
 
         else:
             print('Error: input path "{0}" does not exist'.format(inPath))
             exit(1)
-
-    vprint('Generating output paths')
-
-    for x in inputFilePathList:
-        doConvert = True
-
-        if len(x.parents) == 1:
-            outPath = Path(output).joinpath(x).with_suffix(outFileExtension)
-        else:
-            outPath = Path(output).joinpath(x.relative_to(*x.parts[:2])).with_suffix(outFileExtension)
-
-        if outPath.exists() and not force:
-            doConvert = False
-
-        tg = Target(x, outPath, doConvert)
-        targetList.append(tg)
-        vprint(f'  appending target: {tg}')
 
     return targetList
 
