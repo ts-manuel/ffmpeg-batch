@@ -18,6 +18,42 @@ g_verbose = False
 G_PREASETS_FILE = 'presets.json'
 
 
+class Preset:
+    name : str
+    out_file_ext : str
+    ffmpeg_args : dict
+
+    def __init__(self, name: str):
+        with open(G_PREASETS_FILE, 'r') as f:
+            self._presets = json.load(f)
+
+        # Check if the preset argument is pecified ad is a valid preset name
+        if name == None or not name in self._presets:
+            error('no valid preset specified, use the -p option to slect one of the following presets:', False)
+            print_available_presets()
+            sys.exit(1)
+
+        self.name = name
+        self._preset = self._presets[name]
+        self._preset_name = name
+
+        # Check if the preset contains the required key fields
+        self.out_file_ext = self._try_parse_keyword('output_file_ext')
+        self.ffmpeg_args = self._try_parse_keyword('ffmpeg_args')
+
+
+    def _try_parse_keyword(self, key : str):
+        if not key in self._preset:
+            error(f'wrong sintax in preset file: {G_PREASETS_FILE}, keyword "{key}" not set for preset "{self.name}"')
+        return self._preset[key]
+
+
+    def __repr__(self):
+        return (f'[{self.name}]\n' +
+                f'  out_file_ext : {self.out_file_ext}\n' +
+                f'  ffmpeg_args .: {self.ffmpeg_args}')
+
+
 @dataclass
 class Target:
     input_path: Path
@@ -65,7 +101,9 @@ def main():
         error(f'output path "{args.o}" does not exist, create output path before running the script')
 
     # Assert that a valid preset is specified and get its entry by name
-    preset = assert_and_get_valid_preset(args.p)
+    #preset = assert_and_get_valid_preset(args.p)
+    preset = Preset(args.p)
+    vprint(f'\nLoaded preset: {preset}')
 
     # Generate list of target files to convert
     targetList = generate_target_list(args.i, args.o, args.r, args.f, preset)
@@ -118,9 +156,8 @@ def print_available_presets():
         print(f' - {p}')
 
 
-def generate_target_list(input_list : list[str], output : str, recursive : bool, force : bool, preset : dict) -> list[Target]:
+def generate_target_list(input_list : list[str], output : str, recursive : bool, force : bool, preset : Preset) -> list[Target]:
     target_list = []
-    out_file_extension = preset['output_file_ext']
 
     vprint('\nGenerating target list:')
 
@@ -136,14 +173,14 @@ def generate_target_list(input_list : list[str], output : str, recursive : bool,
 
         if pt.is_file():
             vprint(f'  Adding file: [{in_path}]')
-            target_list.append(generate_target(pt.parents[0], Path(output), pt, out_file_extension, force))
+            target_list.append(generate_target(pt.parents[0], Path(output), pt, preset.out_file_ext, force))
 
         elif pt.is_dir():
             vprint(f'  Adding directory: [{in_path}]')
             ip = get_list_off_files_in_directory(pt, recursive)
 
             for i in ip:
-                target_list.append(generate_target(pt, Path(output), i, out_file_extension, force))
+                target_list.append(generate_target(pt, Path(output), i, preset.out_file_ext, force))
 
         else:
             error(f'input path "{in_path}" does not exist')
@@ -194,7 +231,7 @@ def print_files_to_convert_and_ask_for_confirmation(target_list : list[Target]) 
     return result == 'y'
 
 
-def doConvert(target_list : list[Target], preset : dict):
+def doConvert(target_list : list[Target], preset : Preset):
     conv_progress = RichProgress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -248,7 +285,7 @@ def doConvert(target_list : list[Target], preset : dict):
                     .input(str(target.input_path))
                     .output(
                         str(target.output_path),
-                        options=preset["ffmpeg_args"]
+                        options=preset.ffmpeg_args
                     )
                 )
 
