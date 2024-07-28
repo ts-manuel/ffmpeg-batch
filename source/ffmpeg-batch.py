@@ -40,10 +40,10 @@ def main():
     )
     parser.add_argument('-r', action='store_true', help='recursive evaluation (include sub directories)')
     parser.add_argument('-f', action='store_true', help='do not skip already existing output files')
-    parser.add_argument('-p', help='preset to use for file conversion')
-    parser.add_argument('-v', action='store_true')
-    parser.add_argument('-i', nargs='+', help='input file paths or directories to be evaluated')
-    parser.add_argument('-o', help='output directory where to store converted files')
+    parser.add_argument('-v', action='store_true', help='show debug output on console')
+    parser.add_argument('-p', metavar='PRESET', help='preset to use for file conversion')
+    parser.add_argument('-i', metavar='INPUT', nargs='+', help='input file paths or directories to be evaluated')
+    parser.add_argument('-o', metavar='OUTPUT', help='output directory where to store converted files')
     
     args = parser.parse_args()
 
@@ -53,19 +53,18 @@ def main():
     global gVerbose
     gVerbose = args.v
 
-    vprint('Input parameters:')
-    vprint('  args.input : ' + str(args.i))
-    vprint('  args.input : ' + str(args.o))
-    vprint('  Recursive .: ' + str(args.r))
-    vprint('  Verbose ...: ' + str(gVerbose))
-    vprint('  Force .....: ' + str(args.f))
-    vprint('  Preset ....: ' + str(args.p))
-    vprint()
+    vprint('\nInput parameters:')
+    vprint(f'  args.input : {args.i}')
+    vprint(f'  args.input : {args.o}')
+    vprint(f'  Recursive .: {args.r}')
+    vprint(f'  Verbose ...: {gVerbose}')
+    vprint(f'  Force .....: {args.f}')
+    vprint(f'  Preset ....: {args.p}')
 
     # Check if output path exists
     outputDirectory = Path(args.o)
     if not outputDirectory.is_dir():
-        print('Error: output path "{0}" does not exist, create output path before running the script'.format(args.o))
+        print(f'\nError: output path "{args.o}" does not exist, create output path before running the script')
         exit(1)
 
     # Assert that a valid preset is specified and get its entry by name
@@ -75,7 +74,7 @@ def main():
     targetList = generateTargetList(args.i, args.o, args.r, args.f, preset)
 
     if len(targetList) == 0:
-        print('Error: no valid input file specified')
+        print('\nError: no valid input file specified')
         exit(1)
 
     # Print the list of files to be converted and ask if OK to continue
@@ -86,18 +85,18 @@ def main():
 
 
 def signal_handler(sig, frame):
-    print("Conversion terminated by USER")
+    print('\nConversion terminated by USER')
     exit(0)
 
 
 
-def assertAndGetValidPreset(presetName):
+def assertAndGetValidPreset(presetName : str) -> dict:
     with open(gPresetsFile, 'r') as f:
         presets = json.load(f)
 
     # Check if the preset argument is pecified ad is a valid preset name
     if presetName == None or not presetName in presets:
-        print('Error: no valid preset specified, use the -p option to slect one of the following presets:')
+        print('\nError: no valid preset specified, use the -p option to slect one of the following presets:')
         printAvailablePresets()
         exit(1)
 
@@ -108,7 +107,7 @@ def assertAndGetValidPreset(presetName):
 
     for k in keywordsToCeck:
         if not k in preset:
-            print(f'Error: wrong sintax in preset file: {gPresetsFile}, keyword "{k}" not set for preset "{presetName}"')
+            print(f'\nError: wrong sintax in preset file: {gPresetsFile}, keyword "{k}" not set for preset "{presetName}"')
             keyNotFound = True
 
     if keyNotFound:
@@ -144,48 +143,48 @@ def generateTargetList(inputList : list[str], output : str, recursive : bool, fo
         pt = Path(inPath)
 
         if pt.is_file():
-            vprint('  Adding file: [{0}]'.format(inPath))
+            vprint(f'  Adding file: [{inPath}]')
             targetList.append(generateTarget(pt.parents[0], Path(output), pt, outFileExtension, force))
 
         elif pt.is_dir():
-            vprint('  Adding directory: [{0}]'.format(inPath))
+            vprint(f'  Adding directory: [{inPath}]')
             ip = getListOfFilesInDirectory(pt, recursive)
 
             for i in ip:
                 targetList.append(generateTarget(pt, Path(output), i, outFileExtension, force))
 
         else:
-            print('Error: input path "{0}" does not exist'.format(inPath))
+            print(f'\nError: input path "{inPath}" does not exist')
             exit(1)
 
     return targetList
 
 
 
-def getListOfFilesInDirectory(rootPath, recursive):
+def getListOfFilesInDirectory(rootPath : Path, recursive : bool) -> list[Path]:
     fileList = []
     rd = rootPath.glob('*')
 
     # Test every entry to see if it is a file or a directory
     for x in rd:
         if x.is_file():
-            vprint('  Adding file: [{0}]'.format(x))
+            vprint(f'  Adding file: [{x}]')
             fileList.append(x)
 
         elif x.is_dir() and recursive:
-            vprint('  Adding directory: [{0}]'.format(x))
+            vprint(f'  Adding directory: [{x}]')
             fileList.extend(getListOfFilesInDirectory(x, recursive))
 
     return fileList
 
 
 
-def printFilesToConvertAndAskForConfirmation(targetList):
+def printFilesToConvertAndAskForConfirmation(targetList : list[Target]) -> bool:
     targetCount = len(targetList)
     numberOfDigits = math.ceil(math.log10(targetCount))
     filesToConvert = 0
 
-    print('Files to be converted:')
+    print('\nFiles to be converted:')
 
     # Print list of files to be converted
     for i in range(targetCount):
@@ -195,7 +194,7 @@ def printFilesToConvertAndAskForConfirmation(targetList):
             print('{0:{n}}Output: {1}'.format(' ', str(tp.outputPath),  n=(numberOfDigits + 4)))
             filesToConvert = filesToConvert + 1
 
-    print('\nConverting {0} files'.format(filesToConvert))
+    print(f'\nConverting {filesToConvert} files')
 
     # Ask for confirmation and whait for valid response
     result = ''
@@ -207,7 +206,7 @@ def printFilesToConvertAndAskForConfirmation(targetList):
 
 
 
-def doConvert(targetList : list[Target], preset):
+def doConvert(targetList : list[Target], preset : dict):
     convProgress = RichProgress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -276,12 +275,12 @@ def doConvert(targetList : list[Target], preset):
                     nonlocal accumulatedTime
                     accumulatedTime += duratioInSec
 
-                vprint(f"Running ffmpeg with: {ffmpeg.arguments}")
+                vprint(f"\nRunning ffmpeg with: {ffmpeg.arguments}")
 
                 ffmpeg.execute()
 
             except FFmpegError as exception:
-                print("An exception has been occurred!")
+                print("\nAn exception has been occurred!")
                 print("- Message from ffmpeg:", exception.message)
                 print("- Arguments to execute ffmpeg:", exception.arguments)
 
@@ -289,20 +288,20 @@ def doConvert(targetList : list[Target], preset):
 
 
 
-def getVideoListDuratioInSec(targetList : list[Path]):
-    duration = 0
+def getVideoListDuratioInSec(targetList : list[Path]) -> float:
+    duration = float(0)
 
-    vprint(f'Get video duration for list of {len(targetList)} items:')
+    vprint(f'\nGet video duration for list of {len(targetList)} items:')
 
     for x in targetList:
         vprint(f'  getting duration for {x}')
-        duration = duration + getVideoDuratioInSec(x)
+        duration += getVideoDuratioInSec(x)
 
     return duration
 
 
 
-def getVideoDuratioInSec(path : Path):
+def getVideoDuratioInSec(path : Path) -> float:
     ffprobe = FFmpeg(executable="ffprobe").input(
         str(path),
         print_format="json", # ffprobe will output the results in JSON format
