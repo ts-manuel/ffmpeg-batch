@@ -87,13 +87,13 @@ def main():
     global g_verbose
     g_verbose = args.v
 
-    vprint('\nInput parameters:')
-    vprint(f'  args.input : {args.i}')
-    vprint(f'  args.input : {args.o}')
-    vprint(f'  Recursive .: {args.r}')
-    vprint(f'  Verbose ...: {g_verbose}')
-    vprint(f'  Force .....: {args.f}')
-    vprint(f'  Preset ....: {args.p}')
+    verbose('\nInput parameters:')
+    verbose(f'  args.input : {args.i}')
+    verbose(f'  args.input : {args.o}')
+    verbose(f'  Recursive .: {args.r}')
+    verbose(f'  Verbose ...: {g_verbose}')
+    verbose(f'  Force .....: {args.f}')
+    verbose(f'  Preset ....: {args.p}')
 
     # Check if output path exists
     output_directory = Path(args.o)
@@ -103,7 +103,7 @@ def main():
     # Assert that a valid preset is specified and get its entry by name
     #preset = assert_and_get_valid_preset(args.p)
     preset = Preset(args.p)
-    vprint(f'\nLoaded preset: {preset}')
+    verbose(f'\nLoaded preset: {preset}')
 
     # Generate list of target files to convert
     targetList = generate_target_list(args.i, args.o, args.r, args.f, preset)
@@ -159,24 +159,24 @@ def print_available_presets():
 def generate_target_list(input_list : list[str], output : str, recursive : bool, force : bool, preset : Preset) -> list[Target]:
     target_list = []
 
-    vprint('\nGenerating target list:')
+    verbose('\nGenerating target list:')
 
     def generate_target(input_dir : Path, output_dir: Path, input_path : Path, file_ext : str, force : bool) -> Target:
             op = output_dir.joinpath(input_path.relative_to(input_dir)).with_suffix(file_ext)
             dc = not op.exists() or force
             tg = Target(input_path, op, dc)
-            vprint(f'  generated target: {tg}')
+            verbose(f'  generated target: {tg}')
             return tg
 
     for in_path in input_list:
         pt = Path(in_path)
 
         if pt.is_file():
-            vprint(f'  Adding file: [{in_path}]')
+            verbose(f'  Adding file: [{in_path}]')
             target_list.append(generate_target(pt.parents[0], Path(output), pt, preset.out_file_ext, force))
 
         elif pt.is_dir():
-            vprint(f'  Adding directory: [{in_path}]')
+            verbose(f'  Adding directory: [{in_path}]')
             ip = get_list_off_files_in_directory(pt, recursive)
 
             for i in ip:
@@ -195,11 +195,11 @@ def get_list_off_files_in_directory(root_path : Path, recursive : bool) -> list[
     # Test every entry to see if it is a file or a directory
     for x in rd:
         if x.is_file():
-            vprint(f'  Adding file: [{x}]')
+            verbose(f'  Adding file: [{x}]')
             file_list.append(x)
 
         elif x.is_dir() and recursive:
-            vprint(f'  Adding directory: [{x}]')
+            verbose(f'  Adding directory: [{x}]')
             file_list.extend(get_list_off_files_in_directory(x, recursive))
 
     return file_list
@@ -300,7 +300,7 @@ def doConvert(target_list : list[Target], preset : Preset):
                     nonlocal accumulated_time
                     accumulated_time += duratio_in_sec
 
-                vprint(f"\nRunning ffmpeg with: {ffmpeg.arguments}")
+                verbose(f"\nRunning ffmpeg with: {ffmpeg.arguments}")
 
                 ffmpeg.execute()
 
@@ -315,10 +315,10 @@ def doConvert(target_list : list[Target], preset : Preset):
 def get_video_list_duratio_in_sec(target_list : list[Path]) -> float:
     duration = float(0)
 
-    vprint(f'\nGet video duration for list of {len(target_list)} items:')
+    verbose(f'\nGet video duration for list of {len(target_list)} items:')
 
     for x in target_list:
-        vprint(f'  getting duration for {x}')
+        verbose(f'  getting duration for {x}')
         duration += get_video_duration_in_sec(x)
 
     return duration
@@ -336,8 +336,15 @@ def get_video_duration_in_sec(path : Path) -> float:
     return float(media['streams'][0]['duration'])
 
 
-def vprint(s = ''):
-    if g_verbose: print(s)
+def verbose(s = ''):
+    if not g_verbose:
+        return
+
+    sys.stdout.write(
+        colored(s, 'dark_grey') + '\n'
+    )
+
+   # print(colored(f'{s}', 'light_cyan'))
 
 
 def error(message : str, terminate : bool = True):
