@@ -13,26 +13,22 @@ from hurry.filesize import size as HurryFileSize
 from termcolor import colored
 
 
-
 # Global variables
-gVerbose = False
-gPresetsFile = 'presets.json'
-
+g_verbose = False
+G_PREASETS_FILE = 'presets.json'
 
 
 @dataclass
 class Target:
-    inputPath: Path
-    outputPath: Path
-    doConvert: bool = True
-
+    input_path: Path
+    output_path: Path
+    do_convert: bool = True
 
 
 class CustomHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
     def __init__(self, *args, **kwargs):
         kwargs["max_help_position"] = 30    # default to 24
         super().__init__(*args, **kwargs)
-
 
 
 def main():
@@ -52,36 +48,35 @@ def main():
     # Register interrup handler for ctrl + c
     signal.signal(signal.SIGINT, signal_handler)
 
-    global gVerbose
-    gVerbose = args.v
+    global g_verbose
+    g_verbose = args.v
 
     vprint('\nInput parameters:')
     vprint(f'  args.input : {args.i}')
     vprint(f'  args.input : {args.o}')
     vprint(f'  Recursive .: {args.r}')
-    vprint(f'  Verbose ...: {gVerbose}')
+    vprint(f'  Verbose ...: {g_verbose}')
     vprint(f'  Force .....: {args.f}')
     vprint(f'  Preset ....: {args.p}')
 
     # Check if output path exists
-    outputDirectory = Path(args.o)
-    if not outputDirectory.is_dir():
+    output_directory = Path(args.o)
+    if not output_directory.is_dir():
         error(f'output path "{args.o}" does not exist, create output path before running the script')
 
     # Assert that a valid preset is specified and get its entry by name
-    preset = assertAndGetValidPreset(args.p)
+    preset = assert_and_get_valid_preset(args.p)
 
     # Generate list of target files to convert
-    targetList = generateTargetList(args.i, args.o, args.r, args.f, preset)
+    targetList = generate_target_list(args.i, args.o, args.r, args.f, preset)
 
     if len(targetList) == 0:
         error('no valid input file specified')
 
     # Print the list of files to be converted and ask if OK to continue
-    if printFilesToConvertAndAskForConfirmation(targetList):
+    if print_files_to_convert_and_ask_for_confirmation(targetList):
         # Do the conversion
         doConvert(targetList, preset)
-
 
 
 def signal_handler(sig, frame):
@@ -89,111 +84,106 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-
-def assertAndGetValidPreset(presetName : str) -> dict:
-    with open(gPresetsFile, 'r') as f:
+def assert_and_get_valid_preset(preset_name : str) -> dict:
+    with open(G_PREASETS_FILE, 'r') as f:
         presets = json.load(f)
 
     # Check if the preset argument is pecified ad is a valid preset name
-    if presetName == None or not presetName in presets:
+    if preset_name == None or not preset_name in presets:
         error('no valid preset specified, use the -p option to slect one of the following presets:', False)
-        printAvailablePresets()
+        print_available_presets()
         sys.exit(1)
 
     # Check if the preset contains the required key fields
-    preset = presets[presetName]
-    keywordsToCeck = ['output_file_ext', 'ffmpeg_args']
-    keyNotFound = False
+    preset = presets[preset_name]
+    keywords_to_ceck = ['output_file_ext', 'ffmpeg_args']
+    key_not_found = False
 
-    for k in keywordsToCeck:
+    for k in keywords_to_ceck:
         if not k in preset:
-            error(f'wrong sintax in preset file: {gPresetsFile}, keyword "{k}" not set for preset "{presetName}"', False)
-            keyNotFound = True
+            error(f'wrong sintax in preset file: {G_PREASETS_FILE}, keyword "{k}" not set for preset "{preset_name}"', False)
+            key_not_found = True
 
-    if keyNotFound:
+    if key_not_found:
         sys.exit()
 
     return preset
 
 
-
-def printAvailablePresets():
-    with open(gPresetsFile, 'r') as f:
+def print_available_presets():
+    with open(G_PREASETS_FILE, 'r') as f:
         presets = json.load(f)
 
     for p in presets:
         print(f' - {p}')
 
 
-
-def generateTargetList(inputList : list[str], output : str, recursive : bool, force : bool, preset : dict) -> list[Target]:
-    targetList = []
-    outFileExtension = preset['output_file_ext']
+def generate_target_list(input_list : list[str], output : str, recursive : bool, force : bool, preset : dict) -> list[Target]:
+    target_list = []
+    out_file_extension = preset['output_file_ext']
 
     vprint('\nGenerating target list:')
 
-    def generateTarget(inputDir : Path, outputDir: Path, inputPath : Path, fileExt : str, force : bool) -> Target:
-            op = outputDir.joinpath(inputPath.relative_to(inputDir)).with_suffix(fileExt)
+    def generate_target(input_dir : Path, output_dir: Path, input_path : Path, file_ext : str, force : bool) -> Target:
+            op = output_dir.joinpath(input_path.relative_to(input_dir)).with_suffix(file_ext)
             dc = not op.exists() or force
-            tg = Target(inputPath, op, dc)
+            tg = Target(input_path, op, dc)
             vprint(f'  generated target: {tg}')
             return tg
 
-    for inPath in inputList:
-        pt = Path(inPath)
+    for in_path in input_list:
+        pt = Path(in_path)
 
         if pt.is_file():
-            vprint(f'  Adding file: [{inPath}]')
-            targetList.append(generateTarget(pt.parents[0], Path(output), pt, outFileExtension, force))
+            vprint(f'  Adding file: [{in_path}]')
+            target_list.append(generate_target(pt.parents[0], Path(output), pt, out_file_extension, force))
 
         elif pt.is_dir():
-            vprint(f'  Adding directory: [{inPath}]')
-            ip = getListOfFilesInDirectory(pt, recursive)
+            vprint(f'  Adding directory: [{in_path}]')
+            ip = get_list_off_files_in_directory(pt, recursive)
 
             for i in ip:
-                targetList.append(generateTarget(pt, Path(output), i, outFileExtension, force))
+                target_list.append(generate_target(pt, Path(output), i, out_file_extension, force))
 
         else:
-            error(f'input path "{inPath}" does not exist')
+            error(f'input path "{in_path}" does not exist')
 
-    return targetList
+    return target_list
 
 
-
-def getListOfFilesInDirectory(rootPath : Path, recursive : bool) -> list[Path]:
-    fileList = []
-    rd = rootPath.glob('*')
+def get_list_off_files_in_directory(root_path : Path, recursive : bool) -> list[Path]:
+    file_list = []
+    rd = root_path.glob('*')
 
     # Test every entry to see if it is a file or a directory
     for x in rd:
         if x.is_file():
             vprint(f'  Adding file: [{x}]')
-            fileList.append(x)
+            file_list.append(x)
 
         elif x.is_dir() and recursive:
             vprint(f'  Adding directory: [{x}]')
-            fileList.extend(getListOfFilesInDirectory(x, recursive))
+            file_list.extend(get_list_off_files_in_directory(x, recursive))
 
-    return fileList
+    return file_list
 
 
-
-def printFilesToConvertAndAskForConfirmation(targetList : list[Target]) -> bool:
-    targetCount = len(targetList)
-    numberOfDigits = math.ceil(math.log10(targetCount))
-    filesToConvert = 0
+def print_files_to_convert_and_ask_for_confirmation(target_list : list[Target]) -> bool:
+    target_count = len(target_list)
+    number_of_digits = math.ceil(math.log10(target_count))
+    files_to_convert = 0
 
     print('\nFiles to be converted:')
 
     # Print list of files to be converted
-    for i in range(targetCount):
-        tp = targetList[i]
-        if tp.doConvert:
-            print('[{0:0{n}}]: Input : {1}'.format(filesToConvert, str(tp.inputPath), n=numberOfDigits))
-            print('{0:{n}}Output: {1}'.format(' ', str(tp.outputPath),  n=(numberOfDigits + 4)))
-            filesToConvert = filesToConvert + 1
+    for i in range(target_count):
+        tp = target_list[i]
+        if tp.do_convert:
+            print('[{0:0{n}}]: Input : {1}'.format(files_to_convert, str(tp.input_path), n=number_of_digits))
+            print('{0:{n}}Output: {1}'.format(' ', str(tp.output_path),  n=(number_of_digits + 4)))
+            files_to_convert = files_to_convert + 1
 
-    print(f'\nConverting {filesToConvert} files')
+    print(f'\nConverting {files_to_convert} files')
 
     # Ask for confirmation and whait for valid response
     result = ''
@@ -204,9 +194,8 @@ def printFilesToConvertAndAskForConfirmation(targetList : list[Target]) -> bool:
     return result == 'y'
 
 
-
-def doConvert(targetList : list[Target], preset : dict):
-    convProgress = RichProgress(
+def doConvert(target_list : list[Target], preset : dict):
+    conv_progress = RichProgress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
         TaskProgressColumn(),
@@ -217,7 +206,7 @@ def doConvert(targetList : list[Target], preset : dict):
         transient=True
     )
 
-    overallProgress = RichProgress(
+    overall_progress = RichProgress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
         TaskProgressColumn(),
@@ -227,52 +216,52 @@ def doConvert(targetList : list[Target], preset : dict):
     )
 
     group = Group(
-        convProgress,
-        overallProgress
+        conv_progress,
+        overall_progress
     )
 
     live = Live(group)
 
     with live:
-        accumulatedTime = 0
-        totalTimeSec = getVideoListDuratioInSec([x.inputPath for x in targetList if x.doConvert])
-        overallTaskID = overallProgress.add_task("[red]Progress...", total=totalTimeSec)
-        convTaskList = []
+        accumulated_time = 0
+        total_time_sec = get_video_list_duratio_in_sec([x.input_path for x in target_list if x.do_convert])
+        overall_task_id = overall_progress.add_task("[red]Progress...", total=total_time_sec)
+        conv_task_list = []
 
-        for target in targetList:
+        for target in target_list:
 
             # Skip this target if the doConvert flag is not set
-            if not target.doConvert:
+            if not target.do_convert:
                 continue
 
             # Create output directory if doesn't exist
-            target.outputPath.parent.mkdir(parents=True, exist_ok=True)
+            target.output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            duratioInSec = getVideoDuratioInSec(target.inputPath)
+            duratio_in_sec = get_video_duration_in_sec(target.input_path)
 
-            convTaskList.append(convProgress.add_task(f"[yellow]{target.outputPath.name}", total=duratioInSec, fps=0, speed=0, size=0))
+            conv_task_list.append(conv_progress.add_task(f"[yellow]{target.output_path.name}", total=duratio_in_sec, fps=0, speed=0, size=0))
 
             try:
                 ffmpeg = (
                     FFmpeg()
                     .option("y")
-                    .input(str(target.inputPath))
+                    .input(str(target.input_path))
                     .output(
-                        str(target.outputPath),
+                        str(target.output_path),
                         options=preset["ffmpeg_args"]
                     )
                 )
 
                 @ffmpeg.on("progress")
                 def on_progress(progress: Progress):
-                    convProgress.update(convTaskList[-1], completed=progress.time.seconds, fps=progress.fps, speed=progress.speed, size=HurryFileSize(progress.size))
-                    overallProgress.update(overallTaskID, completed=accumulatedTime + progress.time.seconds)
+                    conv_progress.update(conv_task_list[-1], completed=progress.time.seconds, fps=progress.fps, speed=progress.speed, size=HurryFileSize(progress.size))
+                    overall_progress.update(overall_task_id, completed=accumulated_time + progress.time.seconds)
 
                 @ffmpeg.on("completed")
                 def on_completed():
-                    convProgress.update(convTaskList[-1], completed=duratioInSec)
-                    nonlocal accumulatedTime
-                    accumulatedTime += duratioInSec
+                    conv_progress.update(conv_task_list[-1], completed=duratio_in_sec)
+                    nonlocal accumulated_time
+                    accumulated_time += duratio_in_sec
 
                 vprint(f"\nRunning ffmpeg with: {ffmpeg.arguments}")
 
@@ -283,24 +272,22 @@ def doConvert(targetList : list[Target], preset : dict):
                 print("- Message from ffmpeg:", exception.message)
                 print("- Arguments to execute ffmpeg:", exception.arguments)
 
-        overallProgress.update(overallTaskID, completed=totalTimeSec)
+        overall_progress.update(overall_task_id, completed=total_time_sec)
 
 
-
-def getVideoListDuratioInSec(targetList : list[Path]) -> float:
+def get_video_list_duratio_in_sec(target_list : list[Path]) -> float:
     duration = float(0)
 
-    vprint(f'\nGet video duration for list of {len(targetList)} items:')
+    vprint(f'\nGet video duration for list of {len(target_list)} items:')
 
-    for x in targetList:
+    for x in target_list:
         vprint(f'  getting duration for {x}')
-        duration += getVideoDuratioInSec(x)
+        duration += get_video_duration_in_sec(x)
 
     return duration
 
 
-
-def getVideoDuratioInSec(path : Path) -> float:
+def get_video_duration_in_sec(path : Path) -> float:
     ffprobe = FFmpeg(executable="ffprobe").input(
         str(path),
         print_format="json", # ffprobe will output the results in JSON format
@@ -312,10 +299,8 @@ def getVideoDuratioInSec(path : Path) -> float:
     return float(media['streams'][0]['duration'])
 
 
-
 def vprint(s = ''):
-    if gVerbose: print(s)
-
+    if g_verbose: print(s)
 
 
 def error(message : str, terminate : bool = True):
@@ -324,7 +309,6 @@ def error(message : str, terminate : bool = True):
     )
     if terminate:
         sys.exit(1)
-
 
 
 if __name__ == "__main__":
