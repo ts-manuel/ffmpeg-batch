@@ -1,3 +1,4 @@
+import sys
 import signal
 import math
 import argparse
@@ -9,6 +10,7 @@ from rich.progress import Progress as RichProgress, TextColumn, BarColumn, TaskP
 from rich.live import Live
 from rich.console import Group
 from hurry.filesize import size as HurryFileSize
+from termcolor import colored
 
 
 
@@ -44,7 +46,7 @@ def main():
     parser.add_argument('-p', metavar='PRESET', help='preset to use for file conversion')
     parser.add_argument('-i', metavar='INPUT', nargs='+', help='input file paths or directories to be evaluated')
     parser.add_argument('-o', metavar='OUTPUT', help='output directory where to store converted files')
-    
+
     args = parser.parse_args()
 
     # Register interrup handler for ctrl + c
@@ -64,8 +66,7 @@ def main():
     # Check if output path exists
     outputDirectory = Path(args.o)
     if not outputDirectory.is_dir():
-        print(f'\nError: output path "{args.o}" does not exist, create output path before running the script')
-        exit(1)
+        error(f'output path "{args.o}" does not exist, create output path before running the script')
 
     # Assert that a valid preset is specified and get its entry by name
     preset = assertAndGetValidPreset(args.p)
@@ -74,8 +75,7 @@ def main():
     targetList = generateTargetList(args.i, args.o, args.r, args.f, preset)
 
     if len(targetList) == 0:
-        print('\nError: no valid input file specified')
-        exit(1)
+        error('no valid input file specified')
 
     # Print the list of files to be converted and ask if OK to continue
     if printFilesToConvertAndAskForConfirmation(targetList):
@@ -86,7 +86,7 @@ def main():
 
 def signal_handler(sig, frame):
     print('\nConversion terminated by USER')
-    exit(0)
+    sys.exit(0)
 
 
 
@@ -96,9 +96,9 @@ def assertAndGetValidPreset(presetName : str) -> dict:
 
     # Check if the preset argument is pecified ad is a valid preset name
     if presetName == None or not presetName in presets:
-        print('\nError: no valid preset specified, use the -p option to slect one of the following presets:')
+        error('no valid preset specified, use the -p option to slect one of the following presets:', False)
         printAvailablePresets()
-        exit(1)
+        sys.exit(1)
 
     # Check if the preset contains the required key fields
     preset = presets[presetName]
@@ -107,11 +107,11 @@ def assertAndGetValidPreset(presetName : str) -> dict:
 
     for k in keywordsToCeck:
         if not k in preset:
-            print(f'\nError: wrong sintax in preset file: {gPresetsFile}, keyword "{k}" not set for preset "{presetName}"')
+            error(f'wrong sintax in preset file: {gPresetsFile}, keyword "{k}" not set for preset "{presetName}"', False)
             keyNotFound = True
 
     if keyNotFound:
-        exit()
+        sys.exit()
 
     return preset
 
@@ -154,8 +154,7 @@ def generateTargetList(inputList : list[str], output : str, recursive : bool, fo
                 targetList.append(generateTarget(pt, Path(output), i, outFileExtension, force))
 
         else:
-            print(f'\nError: input path "{inPath}" does not exist')
-            exit(1)
+            error(f'input path "{inPath}" does not exist')
 
     return targetList
 
@@ -316,6 +315,15 @@ def getVideoDuratioInSec(path : Path) -> float:
 
 def vprint(s = ''):
     if gVerbose: print(s)
+
+
+
+def error(message : str, terminate : bool = True):
+    sys.stderr.write(
+        colored('\nerror:', 'red', attrs=["bold"]) + ' ' + message + '\n'
+    )
+    if terminate:
+        sys.exit(1)
 
 
 
