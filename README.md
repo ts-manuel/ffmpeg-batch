@@ -24,10 +24,10 @@
 This is a python script to batch process videos using ffmpeg. The script evaluates the list of input files and directories provided and converts all files to the specified output directory. The conversion is done with ffmpeg using the command line argument from one of the available presets.
 
 ### Parameters
-`-i` specifies the input files or directories, if the input is a directory all the files inside are evaluated.\
-`-r` optional, can be specified to make the evaluation recursive (include files in sub folders).\
+`-i` specifies the input files or directories, if the input is a directory all the files inside are evaluated.<br>
+`-r` optional, can be specified to make the evaluation recursive (include files in sub folders).<br>
 `-o` specifies the output directory. All the evaluated input files are converted and stored in this directory
-the file extension is thaken from the preset.\
+the file extension is thaken from the preset.<br>
 `-p` specifies the preset to utilize.
 
 ### Presets
@@ -61,9 +61,9 @@ every entry must have the folllowing keys:
 
 <!-- INSTALLING PREREQUISITES -->
 ### Python virtual enviroment
-After cloning the repository the python virtual enviroment has to be created.\
+After cloning the repository the python virtual enviroment has to be created.<br>
 From the repository root directory run the follwing command:
-  
+
     python -m venv .venv
 
 After the enviroment has been created it must be activated
@@ -73,5 +73,9 @@ After the enviroment has been created it must be activated
     source .venv/bin/activate (linux)
 
 And then required packages installed
-    
+
     pip install -r .venv/requirements.txt
+
+**NOTE:** The requirements.txt file is egenrate with
+
+    pip freeze > .venv\requirements.txt
