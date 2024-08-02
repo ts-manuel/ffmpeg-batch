@@ -68,9 +68,9 @@ class Targets:
     @dataclass
     class Target:
         class Action(Enum):
-            Create = 1
-            Overwrite = 2
-            Skip = 3
+            Create = 0
+            Overwrite = 1
+            Skip = 2
 
 
         input_path: Path
@@ -79,6 +79,9 @@ class Targets:
         error_msg : str = ''
         action : Action = Action.Skip
         duration_sec : float = 0
+        files_to_create : int = 0
+        files_to_overwrite : int = 0
+        files_to_skip : int = 0
 
 
     @property
@@ -92,6 +95,8 @@ class Targets:
     def __init__(self, input_list : list[str], output : str, recursive : bool, force : bool, preset : Preset):
         # Scan the input directories / files and generate the list Targets initialized with input output path and exists flaf
         self._initialize_file_paths(input_list, output, recursive, preset)
+        self.files_to_create = 0
+        self.files_to_overwrite = 0
 
         # Get metadata about the input files
         for x in self._data:
@@ -109,10 +114,14 @@ class Targets:
             # Decide action to take on target
             if not x.output_exists:
                 x.action = Targets.Target.Action.Create
+                self.files_to_create += 1
                 continue
 
             if x.output_exists and force:
                 x.action = Targets.Target.Action.Overwrite
+                self.files_to_overwrite += 1
+
+        self.files_to_skip = self.count - self.files_to_create - self.files_to_overwrite
 
 
     def _initialize_file_paths(self, input_list : list[str], output : str, recursive : bool, preset : Preset) -> list[Target]:
@@ -178,6 +187,26 @@ class Targets:
         return self._data[item]
 
 
+    def print(self, console : Console):
+        number_of_digits = math.ceil(math.log10(len(self._data)))
+        files_to_convert = 0
+
+        color_set = ['[green]', '[yellow]', '[red]']
+        color_clr = ['[/green]', '[/yellow]', '[/red]']
+
+        console.print('\nInput files:')
+
+        # Print list of files to be converted
+        for i, tp in enumerate(self):
+
+            console.print(f'[{i:0{number_of_digits}}]: {color_set[tp.action.value]}{tp.action.name:{9}} {color_clr[tp.action.value]} : {str(tp.input_path)}')
+
+            if tp.action == Targets.Target.Action.Skip:
+                console.print(f'{' ':{4 + number_of_digits}}[red]{tp.error_msg}')
+
+            if tp.action != Targets.Target.Action.Skip:
+                files_to_convert += 1
+
 
 class CustomHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
     def __init__(self, *args, **kwargs):
@@ -229,7 +258,9 @@ def main():
         error('no valid input file specified')
 
     # Print the list of files to be converted and ask if OK to continue
-    if print_files_to_convert_and_ask_for_confirmation(targets):
+    targets.print(console)
+
+    if ask_for_confirmation(targets.files_to_create, targets.files_to_overwrite, targets.files_to_skip):
         # Do the conversion
         doConvert(targets, preset)
 
@@ -239,26 +270,19 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-def print_files_to_convert_and_ask_for_confirmation(targets : Targets) -> bool:
-    number_of_digits = math.ceil(math.log10(targets.count))
-    files_to_convert = 0
+def ask_for_confirmation(files_to_create : int, files_to_overwrite : int, files_to_skip : int) -> bool:
+    number_of_digits = math.ceil(math.log10(max(files_to_create, files_to_overwrite, files_to_skip)))
 
-    print('\nInput files:')
-
-    # Print list of files to be converted
-    for i, tp in enumerate(targets):
-        print(f'[{i:0{number_of_digits}}]: {tp.action.name:{9}} : {str(tp.input_path)}')
-
-        if tp.action != Targets.Target.Action.Skip:
-            files_to_convert += 1
-
-    print(f'\nConverting {files_to_convert} files')
+    console.print(f'\nCreating .. : {files_to_create:{number_of_digits}} files')
+    console.print(f'Overwriting : {files_to_overwrite:{number_of_digits}} files')
+    console.print(f'Skipping .. : {files_to_skip:{number_of_digits}} files')
+    console.print(f'\nTotal files to process {files_to_create + files_to_overwrite} files')
 
     # Ask for confirmation and whait for valid response
     result = ''
     while result != 'y' and result != 'n':
-        result = input('Do you want to continue? [Y/n] ')
-    print()
+        result = console.input('Do you want to continue? [Y/n] ')
+    console.print()
 
     return result == 'y'
 
