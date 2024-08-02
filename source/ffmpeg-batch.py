@@ -276,7 +276,7 @@ def ask_for_confirmation(files_to_create : int, files_to_overwrite : int, files_
     console.print(f'\nCreating .. : {files_to_create:{number_of_digits}} files')
     console.print(f'Overwriting : {files_to_overwrite:{number_of_digits}} files')
     console.print(f'Skipping .. : {files_to_skip:{number_of_digits}} files')
-    console.print(f'\nTotal files to process {files_to_create + files_to_overwrite} files')
+    console.print(f'\nTotal files to process {files_to_create + files_to_overwrite}')
 
     # Ask for confirmation and whait for valid response
     result = ''
@@ -296,6 +296,7 @@ def doConvert(targets : Targets, preset : Preset):
         TextColumn("[yellow]fps: {task.fields[fps]}"),
         TextColumn("[yellow]size: {task.fields[size]}"),
         TextColumn("[yellow]speed: {task.fields[speed]}x"),
+        TextColumn("[light_sky_blue1] {task.fields[file_name]}"),
         transient=True
     )
 
@@ -320,6 +321,8 @@ def doConvert(targets : Targets, preset : Preset):
         total_time_sec = sum([x.duration_sec for x in targets if x.action != Targets.Target.Action.Skip])
         overall_task_id = overall_progress.add_task("[red]Progress...", total=total_time_sec)
         conv_task_list = []
+        files_to_process = targets.files_to_create + targets.files_to_overwrite
+        target_index = 0
 
         for target in targets:
 
@@ -329,7 +332,8 @@ def doConvert(targets : Targets, preset : Preset):
             # Create output directory if doesn't exist
             target.output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            conv_task_list.append(conv_progress.add_task(f"[yellow]{target.output_path.name}", total=target.duration_sec, fps=0, speed=0, size=0))
+            index_of_total_str = f'{target_index} of {files_to_process}'.rjust(11)
+            conv_task_list.append(conv_progress.add_task(f'[yellow]{index_of_total_str}', total=target.duration_sec, fps=0, speed=0, size=0, file_name=target.output_path.name))
 
             try:
                 ffmpeg = (
@@ -352,6 +356,8 @@ def doConvert(targets : Targets, preset : Preset):
                     conv_progress.update(conv_task_list[-1], completed=target.duration_sec)
                     nonlocal accumulated_time
                     accumulated_time += target.duration_sec
+                    nonlocal target_index
+                    target_index += 1
 
                 verbose(f"\nRunning ffmpeg with: {ffmpeg.arguments}")
 
