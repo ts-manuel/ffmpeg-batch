@@ -8,15 +8,15 @@ from dataclasses import dataclass
 from ffmpeg import FFmpeg, FFmpegError, Progress
 from rich.progress import Progress as RichProgress, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn, TimeElapsedColumn
 from rich.live import Live
-from rich.console import Group
+from rich.console import Group, Console
 from hurry.filesize import size as HurryFileSize
-from termcolor import colored
 from enum import Enum
 
 
 # Global variables
 g_verbose = False
 G_PREASETS_FILE = 'presets.json'
+console = Console(highlight=False)
 
 
 class Preset:
@@ -49,7 +49,7 @@ class Preset:
         return self._preset[key]
 
 
-    def _print_available_presets():
+    def _print_available_presets(self):
         with open(G_PREASETS_FILE, 'r') as f:
             presets = json.load(f)
 
@@ -345,15 +345,11 @@ def verbose(s = ''):
     if not g_verbose:
         return
 
-    sys.stdout.write(
-        colored(s, 'dark_grey') + '\n'
-    )
+    console.print(s, style='bright_black')
 
 
 def error(message : str, terminate : bool = True):
-    sys.stderr.write(
-        colored('\nerror:', 'red', attrs=["bold"]) + ' ' + message + '\n'
-    )
+    console.print(f'\n[bold red]error[/bold red]: {message}')
     if terminate:
         sys.exit(1)
 
