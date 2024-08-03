@@ -76,6 +76,6 @@ And then required packages installed
 
     pip install -r .venv/requirements.txt
 
-**NOTE:** The requirements.txt file is egenrate with
+**NOTE:** The requirements.txt file is genrated with
 
     pip freeze > .venv\requirements.txt
