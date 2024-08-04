@@ -272,11 +272,15 @@ def signal_handler(sig, frame):
 
 def ask_for_confirmation(files_to_create : int, files_to_overwrite : int, files_to_skip : int) -> bool:
     number_of_digits = math.ceil(math.log10(max(files_to_create, files_to_overwrite, files_to_skip)))
+    files_to_process = files_to_create + files_to_overwrite
 
     console.print(f'\nCreating .. : {files_to_create:{number_of_digits}} files')
     console.print(f'Overwriting : {files_to_overwrite:{number_of_digits}} files')
     console.print(f'Skipping .. : {files_to_skip:{number_of_digits}} files')
-    console.print(f'\nTotal files to process {files_to_create + files_to_overwrite}')
+    console.print(f'\nTotal files to process {files_to_process}')
+
+    if files_to_process == 0:
+        return False
 
     # Ask for confirmation and whait for valid response
     result = ''
