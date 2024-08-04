@@ -223,8 +223,8 @@ def main():
     parser.add_argument('-f', action='store_true', help='do not skip already existing output files')
     parser.add_argument('-v', action='store_true', help='show debug output on console')
     parser.add_argument('-p', metavar='PRESET', help='preset to use for file conversion')
-    parser.add_argument('-i', metavar='INPUT', nargs='+', help='input file paths or directories to be evaluated')
-    parser.add_argument('-o', metavar='OUTPUT', help='output directory where to store converted files')
+    parser.add_argument('-i', metavar='INPUT', nargs='+', help='input file paths or directories to be evaluated', required=True)
+    parser.add_argument('-o', metavar='OUTPUT', help='output directory where to store converted files', required=True)
 
     args = parser.parse_args()
 
