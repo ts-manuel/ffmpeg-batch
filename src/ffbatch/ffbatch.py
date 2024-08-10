@@ -175,13 +175,12 @@ class Targets:
     def get_video_duration_in_sec(self, path : Path) -> float:
         ffprobe = FFmpeg(executable="ffprobe").input(
             str(path),
-            print_format="json", # ffprobe will output the results in JSON format
-            show_streams=None,
+            options={"v": "error", "show_entries": "format=duration"}
         )
 
-        media = json.loads(ffprobe.execute())
+        probe_out = str(ffprobe.execute()).split('duration=', 1)[1].split('[/FORMAT]', 1)[0].strip('\\n').strip('\\r')
 
-        return float(media['streams'][0]['duration'])
+        return float(probe_out)
 
 
     def __getitem__(self, item):
