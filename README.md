@@ -7,15 +7,12 @@
   <ol>
     <li><a href="#about-the-project">About The Project</a>
       <ul>
-        <li><a href="#parameters">Parameters</a></li>
+        <li><a href="#usage">Usage</a></li>
         <li><a href="#presets">Presets</a></li>
       </ul>
     </li>
-    <li><a href="#installing-prerequisites">Installing Prerequisites</a>
-      <ul>
-        <li><a href="#python-virtual-enviroment">Python virtual enviroment</a></li>
-      </ul>
-    </li>
+    <li><a href="#installing">Installing</a></li>
+    <li><a href="#development">Development</a></li>
   </ol>
 </details>
 
@@ -24,13 +21,19 @@
 ## About The Project
 This is a python script to batch process videos using ffmpeg. The script evaluates the list of input files and directories provided and converts all files to the specified output directory. The conversion is done with ffmpeg using the command line argument from one of the available presets.
 
-### Parameters
-`-i` specifies the input files or directories, if the input is a directory all the files inside are evaluated.<br>
-`-r` optional, can be specified to make the evaluation recursive (include files in sub folders).<br>
-`-o` specifies the output directory. All the evaluated input files are converted and stored in this directory
-the file extension is thaken from the preset.<br>
-`-f` overrides existing files.<br>
-`-p` specifies the preset to utilize.
+### Usage
+    usage: ffbatch [-h] [-r] [-f] [-v] [-p PRESET] -i INPUT [INPUT ...] -o OUTPUT
+
+    Batch precess media files with ffmpeg.
+
+    options:
+      -h, --help            show this help message and exit
+      -r                    recursive evaluation (include sub directories) (default: False)
+      -f                    do not skip already existing output files (default: False)
+      -v                    show debug output on console (default: False)
+      -p PRESET             preset to use for file conversion (default: None)
+      -i INPUT [INPUT ...]  input file paths or directories to be evaluated (default: None)
+      -o OUTPUT             output directory where to store converted files (default: None)
 
 ### Presets
 Presets are stored in the `"presets.json"` file as a dictionary,

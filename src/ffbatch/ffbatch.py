@@ -217,7 +217,7 @@ class CustomHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
 
 def main():
     parser = argparse.ArgumentParser(
-       description='Wrapper around ffmpeg to process files in batch and add presets.',
+       description='Batch precess media files with ffmpeg.',
        formatter_class=CustomHelpFormatter
     )
     parser.add_argument('-r', action='store_true', help='recursive evaluation (include sub directories)')
