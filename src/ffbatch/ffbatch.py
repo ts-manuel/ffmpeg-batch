@@ -11,6 +11,7 @@ from rich.live import Live
 from rich.console import Group, Console
 from hurry.filesize import size as HurryFileSize
 from enum import Enum
+from importlib.resources import files
 
 
 # Global variables
@@ -25,12 +26,12 @@ class Preset:
     ffmpeg_args : dict
 
     def __init__(self, name: str):
-        with open(G_PREASETS_FILE, 'r') as f:
+        with files('ffbatch').joinpath(G_PREASETS_FILE).open('r') as f:
             self._presets = json.load(f)
 
         # Check if the preset argument is pecified ad is a valid preset name
         if name == None or not name in self._presets:
-            error('no valid preset specified, use the -p option to slect one of the following presets:', False)
+            error('no valid preset specified, use the -p option to select one of the following presets:', False)
             self._print_available_presets()
             sys.exit(1)
 
@@ -45,12 +46,12 @@ class Preset:
 
     def _try_parse_keyword(self, key : str):
         if not key in self._preset:
-            error(f'wrong sintax in preset file: {G_PREASETS_FILE}, keyword "{key}" not set for preset "{self.name}"')
+            error(f'wrong sintax in preset file: {'presets.json'}, keyword "{key}" not set for preset "{self.name}"')
         return self._preset[key]
 
 
     def _print_available_presets(self):
-        with open(G_PREASETS_FILE, 'r') as f:
+        with files('ffbatch').joinpath(G_PREASETS_FILE).open('r') as f:
             presets = json.load(f)
 
         for p in presets:

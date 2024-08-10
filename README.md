@@ -29,6 +29,7 @@ This is a python script to batch process videos using ffmpeg. The script evaluat
 `-r` optional, can be specified to make the evaluation recursive (include files in sub folders).<br>
 `-o` specifies the output directory. All the evaluated input files are converted and stored in this directory
 the file extension is thaken from the preset.<br>
+`-f` overrides existing files.<br>
 `-p` specifies the preset to utilize.
 
 ### Presets
@@ -56,13 +57,16 @@ every entry must have the folllowing keys:
     }
 
 
-<!-- INSTALLING PREREQUISITES -->
-## Installing Prerequisites
+<!-- INSTALLING -->
+## Installing
+After cloning the repository from the root directory run the command
+
+    pip install .
 
 
 <!-- INSTALLING PREREQUISITES -->
-### Python virtual enviroment
-After cloning the repository the python virtual enviroment has to be created.<br>
+## Development
+After cloning the repository create a python virtual enviroment.<br>
 From the repository root directory run the follwing command:
 
     python -m venv .venv
@@ -75,8 +79,13 @@ After the enviroment has been created it must be activated
 
 And then required packages installed
 
-    pip install -r .venv/requirements.txt
+    pip install -r requirements.txt
+
+For testing the package can be installed in editable mode, changes to the code are instantly applied to the package. In editable mode there is no need to install the pakage after every change to the code.
+
+    pip install -e .
+
 
 **NOTE:** The requirements.txt file is genrated with
 
-    pip freeze > .venv\requirements.txt
+    pip freeze > requirements.txt

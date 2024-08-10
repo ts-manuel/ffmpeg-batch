@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=42.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ffbatch"
+version = "0.1"
+description = "Batch precess media files with ffmpeg"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "ts-amuel", email = "ts.manuel.dev@gmail.com"}
+]
+dependencies = [
+    "python-ffmpeg",
+    "rich",
+    "hurry.filesize"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[project.scripts]
+ffbatch = "ffbatch.ffbatch:main"

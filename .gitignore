@@ -1,2 +1,8 @@
-.venv/*
-!.venv/requirements.txt
+.venv/
+
+__pycache__
+
+build/
+
+source.egg-info/
+src/ffbatch.egg-info/
