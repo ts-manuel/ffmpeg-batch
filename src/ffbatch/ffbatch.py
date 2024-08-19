@@ -323,7 +323,7 @@ def doConvert(targets : Targets, preset : Preset):
         overall_progress
     )
 
-    live = Live(group)
+    live = Live(group, transient=True)
 
     with live:
         accumulated_time = 0
