@@ -329,7 +329,7 @@ def doConvert(targets : Targets, preset : Preset):
         accumulated_time = 0
         total_time_sec = sum([x.duration_sec for x in targets if x.action != Targets.Target.Action.Skip])
         overall_task_id = overall_progress.add_task("[red]Progress...", total=total_time_sec)
-        conv_task_list = []
+        conv_task_id = conv_progress.add_task(f'[yellow] ... ')
         files_to_process = targets.files_to_create + targets.files_to_overwrite
         target_index = 0
 
@@ -342,7 +342,7 @@ def doConvert(targets : Targets, preset : Preset):
             target.output_path.parent.mkdir(parents=True, exist_ok=True)
 
             index_of_total_str = f'{target_index} of {files_to_process}'.rjust(11)
-            conv_task_list.append(conv_progress.add_task(f'[yellow]{index_of_total_str}', total=target.duration_sec, fps=0, speed=0, size=0, file_name=target.output_path.name))
+            conv_progress.update(conv_task_id, completed=0, description=f'[yellow]{index_of_total_str}', total=target.duration_sec, fps=0, speed=0, size=0, file_name=target.output_path.name)
 
             try:
                 ffmpeg = (
@@ -357,12 +357,12 @@ def doConvert(targets : Targets, preset : Preset):
 
                 @ffmpeg.on("progress")
                 def on_progress(progress: Progress):
-                    conv_progress.update(conv_task_list[-1], completed=progress.time.seconds, fps=progress.fps, speed=progress.speed, size=HurryFileSize(progress.size))
+                    conv_progress.update(conv_task_id, completed=progress.time.seconds, fps=progress.fps, speed=progress.speed, size=HurryFileSize(progress.size))
                     overall_progress.update(overall_task_id, completed=accumulated_time + progress.time.seconds)
 
                 @ffmpeg.on("completed")
                 def on_completed():
-                    conv_progress.update(conv_task_list[-1], completed=target.duration_sec)
+                    conv_progress.update(conv_task_id, completed=target.duration_sec)
                     nonlocal accumulated_time
                     accumulated_time += target.duration_sec
                     nonlocal target_index
