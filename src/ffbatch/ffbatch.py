@@ -194,12 +194,17 @@ class Targets:
         color_set = ['[green]', '[yellow]', '[red]']
         color_clr = ['[/green]', '[/yellow]', '[/red]']
 
-        console.print('\nInput files:')
+        console.print('\nOutput files:')
 
         # Print list of files to be converted
         for i, tp in enumerate(self):
 
-            console.print(f'[{i:0{number_of_digits}}]: {color_set[tp.action.value]}{tp.action.name:{9}} {color_clr[tp.action.value]} : {str(tp.input_path)}')
+            if tp.output_path.is_absolute():
+                full_out_path = str(tp.output_path)
+            else:
+                full_out_path = str(Path.cwd().joinpath(tp.output_path))
+
+            console.print(f'[{i:0{number_of_digits}}]: {color_set[tp.action.value]}{tp.action.name:{9}} {color_clr[tp.action.value]} : {full_out_path}')
 
             if tp.action == Targets.Target.Action.Skip:
                 console.print(f'{' ':{4 + number_of_digits}}[red]{tp.error_msg}')
