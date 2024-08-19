@@ -1,9 +1,9 @@
 {
-   "sony-conv-all":{
+   "sony-1080p-m2ts":{
       "output_file_ext": ".m2ts",
       "ffmpeg_args":{
          "map": [
-            "0:v",
+            "0:v:0",
             "0:a"
          ],
          "map_metadata:g": "-1",
