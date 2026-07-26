@@ -8,16 +8,15 @@ from dataclasses import dataclass
 from ffmpeg import FFmpeg, FFmpegError, Progress
 from rich.progress import Progress as RichProgress, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn, TimeElapsedColumn
 from rich.live import Live
-from rich.console import Group, Console
+from rich.console import Group
 from hurry.filesize import size as HurryFileSize
 from enum import Enum
 from importlib.resources import files
+from ffbatch.myconsole import MyConsole
 
 
 # Global variables
-g_verbose = False
 G_PREASETS_FILE = 'presets.json'
-console = Console(highlight=False)
 
 
 class Preset:
@@ -25,13 +24,14 @@ class Preset:
     out_file_ext : str
     ffmpeg_args : dict
 
-    def __init__(self, name: str):
+    def __init__(self, console : MyConsole, name: str):
         with files('ffbatch').joinpath(G_PREASETS_FILE).open('r') as f:
+            self._console = console
             self._presets = json.load(f)
 
         # Check if the preset argument is pecified ad is a valid preset name
         if name == None or not name in self._presets:
-            error('no valid preset specified, use the -p option to select one of the following presets:', False)
+            self._console.print('no valid preset specified, use the -p option to select one of the following presets:')
             self._print_available_presets()
             sys.exit(1)
 
@@ -46,7 +46,7 @@ class Preset:
 
     def _try_parse_keyword(self, key : str):
         if not key in self._preset:
-            error(f'wrong sintax in preset file: {'presets.json'}, keyword "{key}" not set for preset "{self.name}"')
+            self._console.error(f'wrong sintax in preset file: {'presets.json'}, keyword "{key}" not set for preset "{self.name}"')
         return self._preset[key]
 
 
@@ -93,8 +93,9 @@ class Targets:
     _data : list[Target] = []
 
 
-    def __init__(self, input_list : list[str], output : str, recursive : bool, force : bool, preset : Preset):
+    def __init__(self, console : MyConsole, input_list : list[str], output : str, recursive : bool, force : bool, preset : Preset):
         # Scan the input directories / files and generate the list Targets initialized with input output path and exists flaf
+        self._console = console
         self._initialize_file_paths(input_list, output, recursive, preset)
         self.files_to_create = 0
         self.files_to_overwrite = 0
@@ -105,10 +106,10 @@ class Targets:
 
             try:
                 x.duration_sec = self.get_video_duration_in_sec(x.input_path)
-            except FFmpegError as exception:
-                verbose('\nException when retriving metadata:')
-                verbose(f'- Message from ffmpeg: "{exception.message}"')
-                verbose(f'- Arguments to execute ffmpeg:' + str(exception.arguments))
+            except FFmpegerror as exception:
+                self._console.verbose('\nException when retriving metadata:')
+                self._console.verbose(f'- Message from ffmpeg: "{exception.message}"')
+                self._console.verbose(f'- Arguments to execute ffmpeg:' + str(exception.arguments))
                 x.error_msg = exception.message.split(':', 1)[1].lstrip()
                 continue
 
@@ -128,30 +129,30 @@ class Targets:
     def _initialize_file_paths(self, input_list : list[str], output : str, recursive : bool, preset : Preset) -> list[Target]:
         self._data = []
 
-        verbose('\nGenerating target list:')
+        self._console.verbose('\nGenerating target list:')
 
         for in_path in input_list:
             pt = Path(in_path)
 
             if pt.is_file():
-                verbose(f'  Adding file: [{in_path}]')
+                self._console.verbose(f'  Adding file: [{in_path}]')
                 self._data.append(self._generate_target(pt.parents[0], Path(output), pt, preset.out_file_ext))
 
             elif pt.is_dir():
-                verbose(f'  Adding directory: [{in_path}]')
+                self._console.verbose(f'  Adding directory: [{in_path}]')
                 ip = self._get_list_off_files_in_directory(pt, recursive)
 
                 for i in ip:
                     self._data.append(self._generate_target(pt, Path(output), i, preset.out_file_ext))
 
             else:
-                error(f'input path "{in_path}" does not exist')
+                self._console.error(f'input path "{in_path}" does not exist')
 
 
     def _generate_target(self, input_dir : Path, output_dir: Path, input_path : Path, file_ext : str) -> Target:
         op = output_dir.joinpath(input_path.relative_to(input_dir)).with_suffix(file_ext)
         tg = self.Target(input_path, op, op.exists())
-        verbose(f'  generated target: {tg}')
+        self._console.verbose(f'  generated target: {tg}')
         return tg
 
 
@@ -162,11 +163,11 @@ class Targets:
         # Test every entry to see if it is a file or a directory
         for x in rd:
             if x.is_file():
-                verbose(f'  Adding file: [{x}]')
+                self._console.verbose(f'  Adding file: [{x}]')
                 file_list.append(x)
 
             elif x.is_dir() and recursive:
-                verbose(f'  Adding directory: [{x}]')
+                self._console.verbose(f'  Adding directory: [{x}]')
                 file_list.extend(self._get_list_off_files_in_directory(x, recursive))
 
         return file_list
@@ -187,14 +188,14 @@ class Targets:
         return self._data[item]
 
 
-    def print(self, console : Console):
+    def print(self):
         number_of_digits = math.ceil(math.log10(len(self._data)))
         files_to_convert = 0
 
         color_set = ['[green]', '[yellow]', '[red]']
         color_clr = ['[/green]', '[/yellow]', '[/red]']
 
-        console.print('\nOutput files:')
+        self._console.print('\nOutput files:')
 
         # Print list of files to be converted
         for i, tp in enumerate(self):
@@ -204,10 +205,10 @@ class Targets:
             else:
                 full_out_path = str(Path.cwd().joinpath(tp.output_path))
 
-            console.print(f'[{i:0{number_of_digits}}]: {color_set[tp.action.value]}{tp.action.name:{9}} {color_clr[tp.action.value]} : {full_out_path}')
+            self._console.print(f'[{i:0{number_of_digits}}]: {color_set[tp.action.value]}{tp.action.name:{9}} {color_clr[tp.action.value]} : {full_out_path}')
 
             if tp.action == Targets.Target.Action.Skip:
-                console.print(f'{' ':{4 + number_of_digits}}[red]{tp.error_msg}')
+                self._console.print(f'{' ':{4 + number_of_digits}}[red]{tp.error_msg}')
 
             if tp.action != Targets.Target.Action.Skip:
                 files_to_convert += 1
@@ -236,38 +237,38 @@ def main():
     # Register interrup handler for ctrl + c
     signal.signal(signal.SIGINT, signal_handler)
 
-    global g_verbose
-    g_verbose = args.v
+    console = MyConsole()
+    console.verbose_enabled = args.v
 
-    verbose('\nInput parameters:')
-    verbose(f'  args.input : {args.i}')
-    verbose(f'  args.input : {args.o}')
-    verbose(f'  Recursive .: {args.r}')
-    verbose(f'  Verbose ...: {g_verbose}')
-    verbose(f'  Force .....: {args.f}')
-    verbose(f'  Preset ....: {args.p}')
+    console.verbose('\nInput parameters:')
+    console.verbose(f'  args.input : {args.i}')
+    console.verbose(f'  args.input : {args.o}')
+    console.verbose(f'  Recursive .: {args.r}')
+    console.verbose(f'  verbose ...: {console.verbose_enabled}')
+    console.verbose(f'  Force .....: {args.f}')
+    console.verbose(f'  Preset ....: {args.p}')
 
     # Check if output path exists
     output_directory = Path(args.o)
     if not output_directory.is_dir():
-        error(f'output path "{args.o}" does not exist, create output path before running the script')
+        console.error(f'output path "{args.o}" does not exist, create output path before running the script')
 
     # Assert that a valid preset is specified and get its entry by name
-    preset = Preset(args.p)
-    verbose(f'\nLoaded preset: {preset}')
+    preset = Preset(console, args.p)
+    console.verbose(f'\nLoaded preset: {preset}')
 
     # Generate list of target files to convert
-    targets = Targets(args.i, args.o, args.r, args.f, preset)
+    targets = Targets(console, args.i, args.o, args.r, args.f, preset)
 
     if targets.count == 0:
-        error('no valid input file specified')
+        console.error('no valid input file specified')
 
     # Print the list of files to be converted and ask if OK to continue
-    targets.print(console)
+    targets.print()
 
-    if ask_for_confirmation(targets.files_to_create, targets.files_to_overwrite, targets.files_to_skip):
+    if ask_for_confirmation(console, targets.files_to_create, targets.files_to_overwrite, targets.files_to_skip):
         # Do the conversion
-        doConvert(targets, preset)
+        doConvert(console, targets, preset)
 
 
 def signal_handler(sig, frame):
@@ -275,7 +276,7 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-def ask_for_confirmation(files_to_create : int, files_to_overwrite : int, files_to_skip : int) -> bool:
+def ask_for_confirmation(console : MyConsole, files_to_create : int, files_to_overwrite : int, files_to_skip : int) -> bool:
     number_of_digits = math.ceil(math.log10(max(files_to_create, files_to_overwrite, files_to_skip)))
     files_to_process = files_to_create + files_to_overwrite
 
@@ -296,7 +297,7 @@ def ask_for_confirmation(files_to_create : int, files_to_overwrite : int, files_
     return result == 'y'
 
 
-def doConvert(targets : Targets, preset : Preset):
+def doConvert(console : MyConsole, targets : Targets, preset : Preset):
     conv_progress = RichProgress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -368,29 +369,16 @@ def doConvert(targets : Targets, preset : Preset):
                     nonlocal target_index
                     target_index += 1
 
-                verbose(f"\nRunning ffmpeg with: {ffmpeg.arguments}")
+                console.verbose(f"\nRunning ffmpeg with: {ffmpeg.arguments}")
 
                 ffmpeg.execute()
 
-            except FFmpegError as exception:
+            except FFmpegerror as exception:
                 print("\nAn exception has been occurred!")
                 print("- Message from ffmpeg:", exception.message)
                 print("- Arguments to execute ffmpeg:", exception.arguments)
 
         overall_progress.update(overall_task_id, completed=total_time_sec)
-
-
-def verbose(s = ''):
-    if not g_verbose:
-        return
-
-    console.print(s, style='bright_black')
-
-
-def error(message : str, terminate : bool = True):
-    console.print(f'\n[bold red]error[/bold red]: {message}')
-    if terminate:
-        sys.exit(1)
 
 
 if __name__ == "__main__":
