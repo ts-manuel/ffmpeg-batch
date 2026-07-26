@@ -13,55 +13,7 @@ from hurry.filesize import size as HurryFileSize
 from enum import Enum
 from importlib.resources import files
 from ffbatch.myconsole import MyConsole
-
-
-# Global variables
-G_PREASETS_FILE = 'presets.json'
-
-
-class Preset:
-    name : str
-    out_file_ext : str
-    ffmpeg_args : dict
-
-    def __init__(self, console : MyConsole, name: str):
-        with files('ffbatch').joinpath(G_PREASETS_FILE).open('r') as f:
-            self._console = console
-            self._presets = json.load(f)
-
-        # Check if the preset argument is pecified ad is a valid preset name
-        if name == None or not name in self._presets:
-            self._console.print('no valid preset specified, use the -p option to select one of the following presets:')
-            self._print_available_presets()
-            sys.exit(1)
-
-        self.name = name
-        self._preset = self._presets[name]
-        self._preset_name = name
-
-        # Check if the preset contains the required key fields
-        self.out_file_ext = self._try_parse_keyword('output_file_ext')
-        self.ffmpeg_args = self._try_parse_keyword('ffmpeg_args')
-
-
-    def _try_parse_keyword(self, key : str):
-        if not key in self._preset:
-            self._console.error(f'wrong sintax in preset file: {'presets.json'}, keyword "{key}" not set for preset "{self.name}"')
-        return self._preset[key]
-
-
-    def _print_available_presets(self):
-        with files('ffbatch').joinpath(G_PREASETS_FILE).open('r') as f:
-            presets = json.load(f)
-
-        for p in presets:
-            print(f' - {p}')
-
-
-    def __repr__(self):
-        return (f'[{self.name}]\n' +
-                f'  out_file_ext : {self.out_file_ext}\n' +
-                f'  ffmpeg_args .: {self.ffmpeg_args}')
+from ffbatch.preset import Preset
 
 
 class Targets:
@@ -254,7 +206,15 @@ def main():
         console.error(f'output path "{args.o}" does not exist, create output path before running the script')
 
     # Assert that a valid preset is specified and get its entry by name
-    preset = Preset(console, args.p)
+    try:
+        preset = Preset(console, args.p)
+    except ValueError:
+        console.print('use the -p option to select one of the following presets:')
+        for i, p in enumerate(Preset.get_available_preset_names()):
+            console.print(f'[{i + 1}]: {p}')
+        console.print(f'you can add other presets by editing the file "{Preset.get_user_presets_file_path()}"')
+        sys.exit(1)
+
     console.verbose(f'\nLoaded preset: {preset}')
 
     # Generate list of target files to convert
