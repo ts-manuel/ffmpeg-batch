@@ -9,8 +9,8 @@ from rich.live import Live
 from rich.console import Group
 from hurry.filesize import size as HurryFileSize
 from ffbatch.myconsole import MyConsole
-from ffbatch.preset import Preset
-from ffbatch.targets import Targets
+from .presetloader import PresetLoader
+from .job import Job, JobFactory
 
 
 class CustomHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
@@ -31,51 +31,54 @@ def main():
     parser.add_argument('-i', metavar='INPUT', nargs='+', help='input file paths or directories to be evaluated', required=True)
     parser.add_argument('-o', metavar='OUTPUT', help='output directory where to store converted files', required=True)
 
-    args = parser.parse_args()
+    args = vars(parser.parse_args())
 
-    # Register interrup handler for ctrl + c
+    # Register interrupt handler for ctrl + c
     signal.signal(signal.SIGINT, signal_handler)
 
     console = MyConsole()
-    console.verbose_enabled = args.v
+    console.verbose_enabled = args['v']
 
     console.verbose('\nInput parameters:')
-    console.verbose(f'  args.input : {args.i}')
-    console.verbose(f'  args.input : {args.o}')
-    console.verbose(f'  Recursive .: {args.r}')
-    console.verbose(f'  verbose ...: {console.verbose_enabled}')
-    console.verbose(f'  Force .....: {args.f}')
-    console.verbose(f'  Preset ....: {args.p}')
+    console.verbose(f'  args.input : {args['i']}')
+    console.verbose(f'  args.input : {args['o']}')
+    console.verbose(f'  Recursive .: {args['r']}')
+    console.verbose(f'  verbose ...: {args['v']}')
+    console.verbose(f'  Force .....: {args['f']}')
+    console.verbose(f'  Preset ....: {args['p']}')
 
     # Check if output path exists
-    output_directory = Path(args.o)
+    output_directory = Path(args['o'])
     if not output_directory.is_dir():
         console.error(f'output path "{args.o}" does not exist, create output path before running the script')
 
     # Assert that a valid preset is specified and get its entry by name
+    presetLoader = PresetLoader(console)
     try:
-        preset = Preset(console, args.p)
+        job_args = presetLoader.get_preset_by_name(args['p'])
     except ValueError:
         console.print('use the -p option to select one of the following presets:')
-        for i, p in enumerate(Preset.get_available_preset_names()):
+        for i, p in enumerate(PresetLoader.get_available_preset_names()):
             console.print(f'[{i + 1}]: {p}')
-        console.print(f'you can add other presets by editing the file "{Preset.get_user_presets_file_path()}"')
+        console.print(f'you can add other presets by editing the file "{PresetLoader.get_user_presets_file_path()}"')
         sys.exit(1)
-
-    console.verbose(f'\nLoaded preset: {preset}')
+    console.verbose(f'\nLoaded preset: {job_args}')
 
     # Generate list of target files to convert
-    targets = Targets(console, args.i, args.o, args.r, args.f, preset)
+    jobFactory = JobFactory(console, job_args, **args)
+    jobs = jobFactory.get_jobs_list()
 
-    if targets.count == 0:
+    if jobs.count == 0:
         console.error('no valid input file specified')
 
     # Print the list of files to be converted and ask if OK to continue
-    targets.print()
+    print_job_list(console, jobs)
+    if len(jobs) == 0:
+        return
 
-    if ask_for_confirmation(console, targets.files_to_create, targets.files_to_overwrite, targets.files_to_skip):
+    if ask_for_confirmation(console):
         # Do the conversion
-        doConvert(console, targets, preset)
+        doConvert(console, jobs)
 
 
 def signal_handler(sig, frame):
@@ -83,19 +86,50 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-def ask_for_confirmation(console : MyConsole, files_to_create : int, files_to_overwrite : int, files_to_skip : int) -> bool:
+def print_job_list(console : MyConsole, jobs : list[Job]):
+    number_of_digits = math.ceil(math.log10(len(jobs)))
+    files_to_create = 0
+    files_to_overwrite = 0
+    files_to_skip = 0
+
+    color_set = ['[green]', '[yellow]', '[red]']
+    color_clr = ['[/green]', '[/yellow]', '[/red]']
+
+    console.print('\nOutput files:')
+
+    # Print list of files to be converted
+    for i, job in enumerate(jobs):
+
+        if job.output_path.is_absolute():
+            full_out_path = str(job.output_path)
+        else:
+            full_out_path = str(Path.cwd().joinpath(job.output_path))
+
+        console.print(f'[{i:0{number_of_digits}}]: {color_set[job.action.value]}{job.action.name:{9}} {color_clr[job.action.value]} : {full_out_path}')
+
+        if job.error_msg != "":
+            console.print(f'{' ':{4 + number_of_digits}}[red]{job.error_msg}')
+
+        match job.action:
+            case Job.Action.Create:
+                files_to_create += 1
+            case Job.Action.Overwrite:
+                files_to_overwrite += 1
+            case Job.Action.Skip:
+                files_to_skip += 1
+
+    # Print summary
     number_of_digits = math.ceil(math.log10(max(files_to_create, files_to_overwrite, files_to_skip)))
     files_to_process = files_to_create + files_to_overwrite
-
     console.print(f'\nCreating .. : {files_to_create:{number_of_digits}} files')
     console.print(f'Overwriting : {files_to_overwrite:{number_of_digits}} files')
     console.print(f'Skipping .. : {files_to_skip:{number_of_digits}} files')
     console.print(f'\nTotal files to process {files_to_process}')
 
-    if files_to_process == 0:
-        return False
 
-    # Ask for confirmation and whait for valid response
+def ask_for_confirmation(console : MyConsole) -> bool:
+
+    # Ask for confirmation and wait for valid response
     result = ''
     while result != 'y' and result != 'n':
         result = console.input('Do you want to continue? [Y/n] ')
@@ -104,7 +138,7 @@ def ask_for_confirmation(console : MyConsole, files_to_create : int, files_to_ov
     return result == 'y'
 
 
-def doConvert(console : MyConsole, targets : Targets, preset : Preset):
+def doConvert(console : MyConsole, jobs : list[Job]):
     conv_progress = RichProgress(
         TextColumn("[progress.description]{task.description}"),
         BarColumn(),
@@ -135,31 +169,31 @@ def doConvert(console : MyConsole, targets : Targets, preset : Preset):
 
     with live:
         accumulated_time = 0
-        total_time_sec = sum([x.duration_sec for x in targets if x.action != Targets.Target.Action.Skip])
+        total_time_sec = sum([x.duration_sec for x in jobs if x.action != Job.Action.Skip])
         overall_task_id = overall_progress.add_task("[red]Progress...", total=total_time_sec)
         conv_task_id = conv_progress.add_task(f'[yellow] ... ')
-        files_to_process = targets.files_to_create + targets.files_to_overwrite
-        target_index = 0
+        files_to_process = len([x for x in jobs if x.action == Job.Action.Create or x.action == Job.Action.Override])
+        job_index = 0
 
-        for target in targets:
+        for job in jobs:
 
-            if target.action == Targets.Target.Action.Skip:
+            if job.action == Job.Action.Skip:
                 continue
 
             # Create output directory if doesn't exist
-            target.output_path.parent.mkdir(parents=True, exist_ok=True)
+            job.output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            index_of_total_str = f'{target_index} of {files_to_process}'.rjust(11)
-            conv_progress.update(conv_task_id, completed=0, description=f'[yellow]{index_of_total_str}', total=target.duration_sec, fps=0, speed=0, size=0, file_name=target.output_path.name)
+            index_of_total_str = f'{job_index} of {files_to_process}'.rjust(11)
+            conv_progress.update(conv_task_id, completed=0, description=f'[yellow]{index_of_total_str}', total=job.duration_sec, fps=0, speed=0, size=0, file_name=job.output_path.name)
 
             try:
                 ffmpeg = (
                     FFmpeg()
                     .option("y")
-                    .input(str(target.input_path))
+                    .input(str(job.input_path))
                     .output(
-                        str(target.output_path),
-                        options=preset.ffmpeg_args
+                        str(job.output_path),
+                        options=job.ffmpeg_args
                     )
                 )
 
@@ -170,17 +204,17 @@ def doConvert(console : MyConsole, targets : Targets, preset : Preset):
 
                 @ffmpeg.on("completed")
                 def on_completed():
-                    conv_progress.update(conv_task_id, completed=target.duration_sec)
+                    conv_progress.update(conv_task_id, completed=job.duration_sec)
                     nonlocal accumulated_time
-                    accumulated_time += target.duration_sec
-                    nonlocal target_index
-                    target_index += 1
+                    accumulated_time += job.duration_sec
+                    nonlocal job_index
+                    job_index += 1
 
                 console.verbose(f"\nRunning ffmpeg with: {ffmpeg.arguments}")
 
                 ffmpeg.execute()
 
-            except FFmpegerror as exception:
+            except FFmpegError as exception:
                 print("\nAn exception has been occurred!")
                 print("- Message from ffmpeg:", exception.message)
                 print("- Arguments to execute ffmpeg:", exception.arguments)

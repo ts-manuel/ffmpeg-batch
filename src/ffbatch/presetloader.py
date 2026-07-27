@@ -1,9 +1,9 @@
-import sys
 import json
 from pathlib import Path
 from platformdirs import user_data_dir
 from importlib.resources import files
 from ffbatch.myconsole import MyConsole
+from .job import JobArgs
 
 
 # Global variables
@@ -12,22 +12,18 @@ G_AUTHOR: str = 'tsmanuel'
 G_PRESET_DEFAULT_PRESET_FILE = 'presets.json'
 
 
-class Preset:
+class PresetLoader:
     '''
     Load the available presets from a file. The default presets.json is bundled with the package.
     At startup the class checks a folder in the user directory for a presets.json file,
     if it is not found the default one is copied to that location.
 
-    After that the content of the preset is loaded in memory.
+    When asked to retrieve a configuration the config file in the used directory is loaded and
+    searched for the required config.
     '''
 
 
-    name : str
-    out_file_ext : str
-    ffmpeg_args : dict
-
-
-    def __init__(self, console : MyConsole, name: str):
+    def __init__(self, console : MyConsole):
         self._console = console
 
         # Check if the presets.json file exists in the user directory,
@@ -35,7 +31,8 @@ class Preset:
         if (not self.get_user_presets_file_path().exists()):
             self._copy_default_presets_to_user_folder()
 
-        # Load required preset
+
+    def get_preset_by_name(self, name : str) -> JobArgs:
         with self.get_user_presets_file_path().open('r') as f:
             data = json.load(f)
 
@@ -43,15 +40,14 @@ class Preset:
             if name == None or not name in data:
                 raise ValueError('No valid preset specified')
 
-            # Set member variables
-            self.name = name
-            self.out_file_ext = self._try_parse_keyword(data[name], 'output_file_ext')
-            self.ffmpeg_args = self._try_parse_keyword(data[name], 'ffmpeg_args')
+            out_file_ext = self._try_parse_keyword(data[name], 'output_file_ext')
+            ffmpeg_args = self._try_parse_keyword(data[name], 'ffmpeg_args')
+            return JobArgs(name, out_file_ext, ffmpeg_args)
 
 
     @staticmethod
     def get_available_preset_names() -> str:
-        with Preset.get_user_presets_file_path().open('r') as f:
+        with PresetLoader.get_user_presets_file_path().open('r') as f:
             presets = json.load(f)
             return [str(x) for x in presets.keys() ]
 
@@ -81,9 +77,3 @@ class Preset:
         if not key in data:
             self._console.error(f'wrong syntax in preset file: {'presets.json'}, keyword "{key}" not set for preset "{self.name}"')
         return data[key]
-
-
-    def __repr__(self):
-        return (f'[{self.name}]\n' +
-                f'  out_file_ext : {self.out_file_ext}\n' +
-                f'  ffmpeg_args .: {self.ffmpeg_args}')
