@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ffbatch"
-version = "0.1"
+version = "0.2"
 description = "Batch precess media files with ffmpeg"
 readme = "README.md"
 license = {text = "MIT"}
@@ -15,7 +15,8 @@ dependencies = [
     "python-ffmpeg",
     "rich",
     "appdirs",
-    "hurry.filesize"
+    "hurry.filesize",
+    "platformdirs"
 ]
 
 [tool.setuptools.packages.find]

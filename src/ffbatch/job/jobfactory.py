@@ -16,14 +16,27 @@ class JobFactory:
     """
 
 
-    def __init__(self, console : MyConsole, job_args : JobArgs, o : str, r : bool, f : bool, F : bool, i : list[str], **kwargs):
+    def __init__(self, console : MyConsole, job_args : JobArgs,
+                 o : str, r : bool, f : bool, F : bool, c : bool, R : str | None, i : list[str], **kwargs):
+
+        # Check that the output directory exists
+        self._arg_output = Path(o)
+        if not self._arg_output.is_dir():
+            raise ValueError(f'output directory does not exist: [{o}]')
+
+        self._arg_relative = None
+        if R is not None:
+            self._arg_relative = Path(R)
+            if not self._arg_relative.is_dir():
+                raise ValueError(f'the RELATIVE argument must be a valid directory: [{R}]')
+
         self._console = console
         self._job_args = job_args
-        self._arg_output = o
-        self._arg_recursive = r
-        self._arg_force = f
-        self._arg_input = i
-        self._arg_file_input = F
+        self._arg_recursive = r     # Search input folders recursively for files to precess
+        self._arg_force = f         # Force overwrite of existing files
+        self._arg_input = i         # Input file paths as list[str] (can be relative or absolute)
+        self._arg_file_input = F    # Interpret input as text file
+        self._arg_clone = c         # Clone the input folder structure to the output folder
 
 
     def get_jobs_list(self) -> list[Job]:
@@ -34,10 +47,7 @@ class JobFactory:
         """
 
         # Generate a list of "raw" jobs, only input, output and ffmpeg_args are set
-        if self._arg_file_input:
-            jobs = self._get_raw_jobs_text_files()
-        else:
-            jobs = self._get_raw_jobs()
+        jobs = self._get_raw_jobs()
 
         # Get metadata about the input video and complete the jobs
         for job in jobs:
@@ -64,44 +74,78 @@ class JobFactory:
 
 
     def _get_raw_jobs(self) -> list[Job]:
-        jobs = []
+        """Parse input file paths and build a list of jobs
 
-        self._console.verbose('\nGenerating job list:')
-
-        for path_str in self._arg_input:
-            path = Path(path_str)
-
-            if path.is_file():
-                self._console.verbose(f'  Adding file: [{path_str}]')
-                jobs.append(self._new_job(path.parents[0], path))
-
-            elif path.is_dir():
-                self._console.verbose(f'  Adding directory: [{path_str}]')
-                ip = self._get_list_off_files_in_directory(path)
-
-                for i in ip:
-                    jobs.append(self._new_job(path, i))
-
-            else:
-                self._console.error(f'input path "{path_str}" does not exist')
-
-        return jobs
-
-
-    def _get_raw_jobs_text_files(self) -> list[Job]:
-        """Parse the input files and retrieve a list of jobs.
-        The input files are expected to be text files with a paths separated by new lines.
+        The only field populated by this function are:
+            input_path, output_path, args
 
         Returns:
-            list[Job]: Raw jobs, only the input output path and ffmpeg_args is set
+            list[Job]: List of jobs
         """
         jobs = []
 
         self._console.verbose('\nGenerating job list:')
 
-        for file_str in self._arg_input:
-            self._console.verbose(f'  Reading input file: [{file_str}]')
-            with Path(file_str).open('r', encoding="utf-8") as file:
+        # Loop over all the user provided input paths
+        for input_path_str in self._arg_input:
+            input_path = Path(input_path_str)
+            self._console.verbose(f'parsing path: [{input_path}]')
+
+            if input_path.is_file():
+                jobs.extend(self._get_raw_jobs_from_file(input_path, None))
+
+            elif input_path.is_dir():
+                jobs.extend(self._get_raw_jobs_from_directory(input_path, input_path))
+
+            else:
+                self._console.error(f'input path "{input_path}" does not exist')
+
+        return jobs
+
+
+    def _get_raw_jobs_from_directory(self, dir_path : Path, root_path : None | Path) -> list[Job]:
+        """Scan the directory and parse all the files
+
+        Args:
+            dir_path (Path):            Directory to search
+            root_path (None | Path):    Parent directory
+
+        Returns:
+            list[Job]: List of jobs
+        """
+        jobs = []
+
+        if self._arg_recursive:
+            rd = dir_path.rglob('*')
+        else:
+            rd = dir_path.glob('*')
+
+        for x in rd:
+            if x.is_file():
+                jobs.extend(self._get_raw_jobs_from_file(x, root_path))
+
+        return jobs
+
+
+    def _get_raw_jobs_from_file(self, file_path : Path, root_path : None | Path) -> list[Job]:
+        """Parse input file path and construct a raw job
+
+        If the -F options is set file_path is read as a text file,
+        the expected content is file paths separated by new lines.
+
+        Args:
+            file_path (Path):           Path to evaluate
+            root_oath (None | Path):    Parent directory
+
+        Returns:
+            list[Job]: List of raw jobs
+        """
+        jobs = []
+
+        # If the -F flag is set interpret file_path as a text file
+        if self._arg_file_input:
+            self._console.verbose(f'  Reading input file: [{file_path}]')
+            with file_path.open('r', encoding="utf-8") as file:
                 for n, line in enumerate(file):
                     line = line.strip(' \n\r')
 
@@ -113,35 +157,43 @@ class JobFactory:
                     # Check that the path exists
                     path = Path(line)
                     if (not path.exists()):
-                        raise ValueError(f'File path not found when evaluating input file "{file_str}", line {n + 1}: [{line}]')
+                        raise ValueError(f'File path not found when evaluating input file "{file_path}", line {n + 1}: [{line}]')
 
-                    jobs.append(self._new_job(path, i))
+                    self._console.verbose(f'    appending file [{path}]')
+                    jobs.append(self._new_raw_job(path, None))
+        else:
+            self._console.verbose(f'    appending file [{file_path}]')
+            jobs.append(self._new_raw_job(file_path, root_path))
 
         return jobs
 
 
-    def _new_job(self, input_dir : Path, input_path : Path) -> Job:
-        op = Path(self._arg_output).joinpath(input_path.relative_to(input_dir)).with_suffix(self._job_args.out_file_ext)
-        job = Job(input_path, op, self._job_args)
-        self._console.verbose(f'  generated job: {job}')
-        return job
+    def _new_raw_job(self, input_path : Path, root_path : None | Path) -> Job:
+        """Construct a raw job
+        
+        If the -c option is set the output path is computed by prepending the input path relative to the input directory with the output directory.
+        If not set the input files are stripped of any parent directory before been prepended with the output directory.
 
+        Args:
+            input_path (Path):          Path to the input file
+            root_path (None | Path):    Path to the parent directory
 
-    def _get_list_off_files_in_directory(self, root_path : Path) -> list[Path]:
-        file_list = []
-        rd = root_path.glob('*')
+        Returns:
+            Job: New job with input_path, output_path and args set
+        """
+        if self._arg_relative is not None:
+            root_path = self._arg_relative
 
-        # Test every entry to see if it is a file or a directory
-        for x in rd:
-            if x.is_file():
-                self._console.verbose(f'  Adding file: [{x}]')
-                file_list.append(x)
+        if self._arg_clone and root_path is not None:
+            output_path = self._arg_output.joinpath(input_path.relative_to(root_path))
+            self._console.verbose(f'    cloning output path, input: [{input_path}], input_dir: [{root_path}] -> [{output_path}]')
+        else:
+            output_path = self._arg_output.joinpath(input_path.name)
 
-            elif x.is_dir() and self._arg_recursive:
-                self._console.verbose(f'  Adding directory: [{x}]')
-                file_list.extend(self._get_list_off_files_in_directory(x))
+        # Set file extension
+        output_path = output_path.with_suffix(self._job_args.out_file_ext)
 
-        return file_list
+        return Job(input_path, output_path, self._job_args)
 
 
     def get_video_duration_in_sec(self, path : Path) -> float:

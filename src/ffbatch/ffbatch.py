@@ -24,9 +24,12 @@ def main():
     parser.add_argument('-f', action='store_true', help='do not skip already existing output files')
     parser.add_argument('-F', action='store_true', help='read input files paths from text file')
     parser.add_argument('-v', action='store_true', help='show debug output on console')
+    parser.add_argument('-c', action='store_true', help='clone folder structure of input files.\
+                        For every input directory the internal folder structure is cloned inside the output directory.')
+    parser.add_argument('-R', metavar='RELATIVE', help='use in conjunction with the -c option to force the parent directory from where to clone the structure.')
     parser.add_argument('-p', metavar='PRESET', help='preset to use for file conversion')
-    parser.add_argument('-i', metavar='INPUT', nargs='+', help='input file paths or directories to be evaluated. \
-                        If the -F option is set the input files are interpreted as text file where every line is interpreted as a path to process', required=True)
+    parser.add_argument('-i', metavar='INPUT', nargs='+', help="input file paths or directories to be evaluated. Can be relative to the current directory or absolute.\
+                        If the -F option is set the input files are interpreted as text files where every line is a path to process.", required=True)
     parser.add_argument('-o', metavar='OUTPUT', help='output directory where to store converted files', required=True)
 
     args = vars(parser.parse_args())
@@ -38,10 +41,12 @@ def main():
     console.verbose_enabled = args['v']
 
     console.verbose('\nInput parameters:')
-    console.verbose(f'  INPUT      : {args['i']}')
-    console.verbose(f'  OUTPUT     : {args['o']}')
+    console.verbose(f'  INPUT .....: {args['i']}')
+    console.verbose(f'  OUTPUT ....: {args['o']}')
+    console.verbose(f'  RELATIVE ..: {args['R']}')
     console.verbose(f'  Recursive .: {args['r']}')
     console.verbose(f'  verbose ...: {args['v']}')
+    console.verbose(f'  clone .....: {args['c']}')
     console.verbose(f'  Force .....: {args['f']}')
     console.verbose(f'  Preset ....: {args['p']}')
     console.verbose(f'  File Input : {args['F']}')
