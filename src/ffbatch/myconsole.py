@@ -19,8 +19,9 @@ class MyConsole(Console):
 
     def verbose(self, s : str) -> None:
         if self.verbose_enabled:
-            self.print(s, style=self.verbose_style)
+            self.print(s, style=self.verbose_style, markup=False)
 
     def error(self, s : str) -> None:
-        self._console.print(f'\n[bold red]error[/bold red]: {s}')
+        self.print(f'\n[bold red]error[/bold red]: ', end='')
+        self.print(s, markup=False)
         sys.exit(1)

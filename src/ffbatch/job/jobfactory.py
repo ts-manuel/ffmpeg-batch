@@ -16,13 +16,14 @@ class JobFactory:
     """
 
 
-    def __init__(self, console : MyConsole, job_args : JobArgs, o : str, r : bool, f : bool, i : list[str], **kwargs):
+    def __init__(self, console : MyConsole, job_args : JobArgs, o : str, r : bool, f : bool, F : bool, i : list[str], **kwargs):
         self._console = console
         self._job_args = job_args
         self._arg_output = o
         self._arg_recursive = r
         self._arg_force = f
         self._arg_input = i
+        self._arg_file_input = F
 
 
     def get_jobs_list(self) -> list[Job]:
@@ -33,7 +34,10 @@ class JobFactory:
         """
 
         # Generate a list of "raw" jobs, only input, output and ffmpeg_args are set
-        jobs = self._get_raw_jobs()
+        if self._arg_file_input:
+            jobs = self._get_raw_jobs_text_files()
+        else:
+            jobs = self._get_raw_jobs()
 
         # Get metadata about the input video and complete the jobs
         for job in jobs:
@@ -80,6 +84,38 @@ class JobFactory:
 
             else:
                 self._console.error(f'input path "{path_str}" does not exist')
+
+        return jobs
+
+
+    def _get_raw_jobs_text_files(self) -> list[Job]:
+        """Parse the input files and retrieve a list of jobs.
+        The input files are expected to be text files with a paths separated by new lines.
+
+        Returns:
+            list[Job]: Raw jobs, only the input output path and ffmpeg_args is set
+        """
+        jobs = []
+
+        self._console.verbose('\nGenerating job list:')
+
+        for file_str in self._arg_input:
+            self._console.verbose(f'  Reading input file: [{file_str}]')
+            with Path(file_str).open('r', encoding="utf-8") as file:
+                for n, line in enumerate(file):
+                    line = line.strip(' \n\r')
+
+                    if line == '':
+                        continue
+
+                    self._console.verbose(f'  line: [{line}]')
+
+                    # Check that the path exists
+                    path = Path(line)
+                    if (not path.exists()):
+                        raise ValueError(f'File path not found when evaluating input file "{file_str}", line {n + 1}: [{line}]')
+
+                    jobs.append(self._new_job(path, i))
 
         return jobs
 
